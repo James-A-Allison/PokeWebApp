@@ -83,7 +83,7 @@ df_out <- levels_internal %>%
     }
   
   df_out <- df_out %>%
-    select(name, CP, Level, Attack_IV, Def_IV, HP_IV)
+    select(name, CP, Level, Dust, HP = Visible_HP, Attack_IV, Def_IV, HP_IV)
   return(df_out)
 }
 
