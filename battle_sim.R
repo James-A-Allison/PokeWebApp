@@ -441,7 +441,7 @@ user_pokemon %>%
    # iv_sta = iv_sta
   )
 
-attackers <- user_pokemon %>%
+user_pokemon <- user_pokemon %>%
   rowwise() %>%
   mutate(
     attacker = list(
@@ -454,3 +454,41 @@ attackers <- user_pokemon %>%
     )
   ) %>%
   ungroup()
+
+user_pokemon$attacker[[1]]
+
+clone <- function(x) unserialize(serialize(x, NULL))
+
+results <- user_pokemon %>%
+  mutate(
+    sim = map(
+      attacker,
+      ~ simulate_battle_timeline(
+          attacker = .x,
+          boss = clone(boss)
+        )
+    )
+  )
+
+results$sim[[1]]$dps
+results$sim[[2]]$damage_done
+
+results_summary <- results %>%
+  mutate(
+    dps = map_dbl(sim, "dps"),
+    damage = map_dbl(sim, "damage_done"),
+    time = map_dbl(sim, "time")
+  ) %>%
+  select(-sim)
+
+library(furrr)
+
+plan(multisession)
+
+results <- user_pokemon %>%
+  mutate(
+    sim = future_map(
+      attacker,
+      ~ simulate_battle_timeline(.x, clone(boss))
+    )
+  )
