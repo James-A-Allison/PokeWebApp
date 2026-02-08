@@ -15,4 +15,4 @@ pokemon_moves <- read_sheet("https://docs.google.com/spreadsheets/d/1cjTin49W2Ak
 saveRDS(base_stats, "data/base_stats.RDS")
 saveRDS(levels, "data/levels.RDS")
 saveRDS(moves, "data/moves.RDS")                    
-saveRDS(moves, "data/pokemon_moves")                    
+saveRDS(pokemon_moves, "data/pokemon_moves.RDS")                    
