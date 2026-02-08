@@ -42,6 +42,8 @@ base_stats <- readRDS("data/base_stats.rds") %>%
 
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
+weather_boosts <- readRDS("data/weather.rds")
+
 
 level_multipliers <- readRDS("data/levels.rds") %>%
   select(level = `Level`, cpm = `CP Multiplier`)
@@ -231,8 +233,8 @@ build_boss <- function(
 
 
 
-calc_damage <- function(power, atk, def, stab = 1, effectiveness = 1, bonus = 1) {
-  floor(0.5 * power * (atk / def) * stab * effectiveness * bonus) + 1
+calc_damage <- function(power, atk, def, stab = 1, effectiveness = 1, bonus = 1, weather = 1, friendship = 1) {
+  floor(0.5 * power * (atk / def) * stab * effectiveness * bonus * weather * friendship) + 1
 }
 
 party_power_gain <- function(fast_duration) {
@@ -304,6 +306,27 @@ get_stab <- function(move_type, type1, type2) {
   } else {
     1
   }
+}
+
+get_weather_multiplier <- function(move_type, weather) {
+  boosted <- weather_boosts %>%
+    dplyr::filter(
+      weather == !!weather,
+      type == !!move_type
+    ) %>%
+    nrow() > 0
+
+  if (boosted) 1.2 else 1.0
+}
+
+get_friendship_multiplier <- function(friendship) {
+  dplyr::case_when(
+    friendship == "good"  ~ 1.03,
+    friendship == "great" ~ 1.05,
+    friendship == "ultra" ~ 1.07,
+    friendship == "best"  ~ 1.10,
+    TRUE                  ~ 1.00
+  )
 }
 
 do_boss_fast <- function(attacker, boss, time) {
@@ -486,6 +509,20 @@ library(furrr)
 plan(multisession)
 
 results <- user_pokemon %>%
+  mutate(
+    sim = future_map(
+      attacker,
+      ~ simulate_battle_timeline(.x, clone(boss))
+    )
+  )
+
+scenarios <- tidyr::crossing(
+  user_pokemon,
+  boss_id = c("regigigas", "kyogre"),
+  weather = c("clear", "windy")
+)
+
+results2 <- scenarios %>%
   mutate(
     sim = future_map(
       attacker,
