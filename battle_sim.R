@@ -394,3 +394,4 @@ result <- simulate_battle_timeline(attacker, boss)
 
 result$dps
 result$damage_done
+result
