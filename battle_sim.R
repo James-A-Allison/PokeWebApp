@@ -1,6 +1,33 @@
 library(tidyverse)
 library(shiny)
 
+## Variables
+
+PARTY_POWER_MULT <- 2
+BOSS_CHARGE_COOLDOWN <- 2.5
+
+raid_boss_tiers <- tibble::tibble(
+  tier = c(5),
+  hp = c(15000),
+  cpm = c(0.7903)
+)
+
+## Data
+
+user_pokemon <- readRDS("data/user_pokemon.rds") %>%
+  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
+  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
+  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
+  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
+  select(pokemon_id = Pokemon,
+        level = `Level`,
+        iv_atk = `Attack IV`,
+        iv_def = `Defence IV`,
+        iv_sta = `HP IV`,
+          shadow,
+        fast_move_id = `Fast Move`,
+      charged_move_id = `Charge1`)
+
 base_stats <- readRDS("data/base_stats.rds") %>%
   select(
     pokemon_id = name,
@@ -16,18 +43,17 @@ base_stats <- readRDS("data/base_stats.rds") %>%
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
 
-
 level_multipliers <- readRDS("data/levels.rds") %>%
   select(level = `Level`, cpm = `CP Multiplier`)
 
 move_combinations <- inner_join(
   pokemon_moves %>%
-    inner_join(moves %>% filter(`Move Type` == "Fast")) %>%
+    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
     select(Pokemon, fast_move = `Move Name`),
 
   pokemon_moves %>%
-    inner_join(moves %>% filter(`Move Type` == "Charge")) %>%
-    select(Pokemon, charge_move = `Move Name`)
+    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
+    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
 ) %>%
   pivot_longer(
     cols = c("fast_move", "charge_move"),
@@ -52,20 +78,28 @@ move_combinations <- inner_join(
         energy_delta,
         duration_ms,
         type = Category
-      )
+      ), relationship = "many-to-many"
   )
 
-moves <- move_combinations %>% 
-  filter(Pokemon == "Mewtwo") %>%
-  group_by(Pokemon, category) %>% 
-  slice(1) %>%
-  ungroup()
+moves <- moves %>%
+      mutate(
+        energy_delta = (`Energy Gain` * 1) + (`Energy Cost` * -1),
+        duration_ms = Duration * 1000,
+        category = case_when(
+          `Move Type` == "Fast" ~ "fast_move",
+          `Move Type` == "Charge" ~ "charge_move"
+        )
+      ) %>%
+  select(
+        move_id = `Move Name`,
+        name = `Move Name`,
+        category,
+        power = Power,
+        energy_delta,
+        duration_ms,
+        type = Category)
 
-raid_boss_tiers <- tibble::tibble(
-  tier = c(5),
-  hp = c(15000),
-  cpm = c(0.7903)
-)
+## Functions
 
 calc_pokemon_stats <- function(
   pokemon_id,
@@ -206,7 +240,6 @@ party_power_gain <- function(fast_duration) {
   fast_duration * 10
 }
 
-PARTY_POWER_MULT <- 2
 do_fast_move <- function(attacker, boss, time) {
   stab <- get_stab(
     move_type = attacker$fast$type,
@@ -322,7 +355,6 @@ do_boss_charged <- function(attacker, boss, time) {
   list(attacker = attacker, boss = boss)
 }
 
-BOSS_CHARGE_COOLDOWN <- 2.5
 
 boss_can_charge <- function(boss, time) {
   boss$energy >= abs(boss$charged$energy) &&
@@ -395,3 +427,30 @@ result <- simulate_battle_timeline(attacker, boss)
 result$dps
 result$damage_done
 result
+
+user_pokemon %>%
+  slice(1) %>%
+  build_attacker(
+    pokemon_id = pokemon_id,
+    level = level,
+    fast_move_id = fast_move_id,
+    charged_move_id = charged_move_id
+   # shadow = shadow,
+   # iv_atk = iv_atk,
+   # iv_def = iv_def,
+   # iv_sta = iv_sta
+  )
+
+attackers <- user_pokemon %>%
+  rowwise() %>%
+  mutate(
+    attacker = list(
+      build_attacker(
+        pokemon_id      = pokemon_id,
+        level           = level,
+        fast_move_id    = fast_move_id,
+        charged_move_id = charged_move_id
+      )
+    )
+  ) %>%
+  ungroup()
