@@ -233,8 +233,28 @@ build_boss <- function(
 
 
 
-calc_damage <- function(power, atk, def, stab = 1, effectiveness = 1, bonus = 1, weather = 1, friendship = 1) {
-  floor(0.5 * power * (atk / def) * stab * effectiveness * bonus * weather * friendship) + 1
+calc_damage <- function(
+  power,
+  atk,
+  def,
+  move_type,
+  attacker_types,
+  weather,
+  friendship
+) {
+  stab <- if (move_type %in% attacker_types) 1.2 else 1.0
+
+  weather_mult <- get_weather_multiplier(move_type, weather)
+  friendship_mult <- get_friendship_multiplier(friendship)
+
+  floor(
+    0.5 *
+    power *
+    (atk / def) *
+    stab *
+    weather_mult *
+    friendship_mult
+  ) + 1
 }
 
 party_power_gain <- function(fast_duration) {
@@ -253,7 +273,10 @@ do_fast_move <- function(attacker, boss, time) {
     power = attacker$fast$power,
     atk = attacker$atk,
     def = boss$def,
-    stab = stab
+    stab = stab,
+    weather = weather,
+    friendship = friendship,
+    move_type = attacker$fast$type
   )
 
   boss$hp <- boss$hp - dmg
@@ -285,7 +308,11 @@ do_charged_move <- function(attacker, boss, time) {
     power = attacker$charged$power * mult,
     atk = attacker$atk,
     def = boss$def,
-    stab = stab
+    stab = stab,
+    weather = weather,
+    friendship = friendship,
+    move_type = attacker$charged$type
+
   )
 
   boss$hp <- boss$hp - dmg
@@ -341,7 +368,10 @@ do_boss_fast <- function(attacker, boss, time) {
     power = boss$fast$power,
     atk   = boss$atk,
     def   = attacker$def,
-    stab  = stab
+    stab  = stab,
+    weather = weather,
+    move_type = boss$fast$type
+
   )
 
   attacker$hp <- attacker$hp - dmg
@@ -366,7 +396,9 @@ do_boss_charged <- function(attacker, boss, time) {
     power = boss$charged$power,
     atk   = boss$atk,
     def   = attacker$def,
-    stab  = stab
+    stab  = stab,
+    weather = weather,
+    move_type = boss$charged$type
   )
 
   attacker$hp <- attacker$hp - dmg
@@ -384,7 +416,7 @@ boss_can_charge <- function(boss, time) {
     (time - boss$last_charged_time) >= BOSS_CHARGE_COOLDOWN
 }
 
-simulate_battle_timeline <- function(attacker, boss, max_time = 300) {
+simulate_battle_timeline <- function(attacker, boss, max_time = 300, weather, friendship) {
   time <- 0
   damage_done <- 0
 
@@ -445,7 +477,7 @@ boss <- build_boss(
   charged_move_id = "Hyper Beam"
 )
 
-result <- simulate_battle_timeline(attacker, boss)
+result <- simulate_battle_timeline(attacker, boss, weather = "Sunny")
 
 result$dps
 result$damage_done
