@@ -1,5 +1,6 @@
 library(googlesheets4)
 library(shiny)
+library(DT)
 SHEET_ID <- "https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/"
 
 
@@ -23,7 +24,7 @@ ui <- fluidPage(
     ),
 
     mainPanel(
-      tableOutput("current_moves")
+      DT::dataTableOutput("current_moves")
     )
   )
 )
@@ -83,20 +84,23 @@ server <- function(input, output, session) {
   })
 
   # Show current moves
-  output$current_moves <- renderTable({
-    req(input$pokemon)
+output$current_moves <- DT::renderDataTable({
+  req(input$pokemon)
 
-    data$pokemon_moves %>%
-      filter(pokemon_id == input$pokemon) %>%
-      left_join(data$moves, by = "move_id") %>%
-      select(Move = name, Legacy = legacy)
-  }, rownames = TRUE)
+  data$pokemon_moves %>%
+    filter(pokemon_id == input$pokemon) %>%
+    left_join(data$moves, by = "move_id") %>%
+    select(
+      Move = name,
+      Legacy = legacy
+    )
+}, selection = "single", rownames = FALSE)
 
   # Add move
   observeEvent(input$add_move, {
     req(input$pokemon, input$move)
-    print(input$pokemon)
-    print(input$move)
+    # print(input$pokemon)
+    # print(input$move)
 
     # pokemon_id <- data$pokemon %>%
     #   filter(name == input$pokemon) %>%
@@ -121,7 +125,7 @@ server <- function(input, output, session) {
       new_row) %>%
       distinct()
 
-    print(new_row)
+    # print(new_row)
     write_sheet(updated, ss = SHEET_ID, sheet = "pokemon_moves")
     refresh_data()
   })
