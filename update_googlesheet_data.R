@@ -20,8 +20,7 @@ user_pokemon <- read_sheet("https://docs.google.com/spreadsheets/d/1cjTin49W2AkW
 
 type_effectiveness <- read_sheet("https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/",
                           sheet = "Type Effectiveness Output") %>%
-  select(`Attack`, `Defence_1`, `Defence_2`, `Damage Multiplier`) %>%
-  mutate(`Defence_2` = if_else(`Defence_2` == `Defence_1`, NA_character_, `Defence_2`))
+  select(`Attack`, `Defence_1`, `Defence_2`, `Damage Multiplier`)
 
 weather <- read_sheet("https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/",
                     sheet = "Weather")

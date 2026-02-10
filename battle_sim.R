@@ -14,6 +14,28 @@ raid_boss_tiers <- tibble::tibble(
 
 ## Data
 
+type_effectiveness <- readRDS("data/type_effectiveness.RDS") 
+
+get_type_effectiveness <- function(atk, def1, def2 = NA) {
+  if (is.na(def2)) {
+  type_effectiveness %>%
+    filter(Attack == !!atk,
+          Defence_1 == !!def1,
+          is.na(Defence_2)
+        ) %>%
+    pull(`Damage Multiplier`)
+  } else if (!is.na(def2)) {
+      type_effectiveness %>%
+    filter(Attack == !!atk,
+          Defence_1 == !!def1,
+          Defence_2 == !!def2
+        ) %>%
+    pull(`Damage Multiplier`)
+  } else {1}
+
+
+}
+
 user_pokemon <- readRDS("data/user_pokemon.rds") %>%
   mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
@@ -241,7 +263,8 @@ calc_damage <- function(
   attacker_types,
   weather,
   friendship = "none", 
-  stab
+  stab,
+  type_effectiveness
 ) {
   # stab <- if (move_type %in% attacker_types) 1.2 else 1.0
 
@@ -254,7 +277,8 @@ calc_damage <- function(
     (atk / def) *
     stab *
     weather_mult *
-    friendship_mult
+    friendship_mult *
+    type_effectiveness
   ) + 1
 }
 
@@ -270,6 +294,8 @@ do_fast_move <- function(attacker, boss, time, weather, friendship) {
     type2 = attacker$type2
   )
 
+  type_effectiveness <- get_type_effectiveness(attacker$fast$type, boss$type1, boss$type2)
+
   dmg <- calc_damage(
     power = attacker$fast$power,
     atk = attacker$atk,
@@ -277,7 +303,8 @@ do_fast_move <- function(attacker, boss, time, weather, friendship) {
     stab = stab,
     weather = weather,
     friendship = friendship,
-    move_type = attacker$fast$type
+    move_type = attacker$fast$type,
+    type_effectiveness = type_effectiveness
   )
 
   boss$hp <- boss$hp - dmg
@@ -304,6 +331,8 @@ do_charged_move <- function(attacker, boss, time, weather, friendship) {
     type1 = attacker$type1,
     type2 = attacker$type2
   )
+  
+  type_effectiveness <- get_type_effectiveness(attacker$charged$type, boss$type1, boss$type2)
 
   dmg <- calc_damage(
     power = attacker$charged$power * mult,
@@ -312,7 +341,8 @@ do_charged_move <- function(attacker, boss, time, weather, friendship) {
     stab = stab,
     weather = weather,
     friendship = friendship,
-    move_type = attacker$charged$type
+    move_type = attacker$charged$type,
+    type_effectiveness = type_effectiveness
 
   )
 
@@ -365,14 +395,16 @@ do_boss_fast <- function(attacker, boss, time, weather, friendship = "none") {
     boss$type2
   )
 
+  type_effectiveness <- get_type_effectiveness(boss$charged$type, attacker$type1, attacker$type2)
+
   dmg <- calc_damage(
     power = boss$fast$power,
     atk   = boss$atk,
     def   = attacker$def,
     stab  = stab,
     weather = weather,
-    move_type = boss$fast$type
-
+    move_type = boss$fast$type,
+    type_effectiveness = type_effectiveness
   )
 
   attacker$hp <- attacker$hp - dmg
@@ -393,13 +425,16 @@ do_boss_charged <- function(attacker, boss, time, weather, friendship = "none") 
     boss$type2
   )
 
+  type_effectiveness <- get_type_effectiveness(boss$charged$type, attacker$type1, attacker$type2)
+
   dmg <- calc_damage(
     power = boss$charged$power,
     atk   = boss$atk,
     def   = attacker$def,
     stab  = stab,
     weather = weather,
-    move_type = boss$charged$type
+    move_type = boss$charged$type,
+    type_effectiveness = type_effectiveness
   )
 
   attacker$hp <- attacker$hp - dmg
@@ -420,7 +455,7 @@ boss_can_charge <- function(boss, time) {
 simulate_battle_timeline <- function(attacker, boss, max_time = 300, weather, friendship) {
   time <- 0
   damage_done <- 0
-
+  # browser()
   while (
     attacker$hp > 0 &&
       boss$hp > 0 &&
