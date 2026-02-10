@@ -240,9 +240,10 @@ calc_damage <- function(
   move_type,
   attacker_types,
   weather,
-  friendship
+  friendship = "none", 
+  stab
 ) {
-  stab <- if (move_type %in% attacker_types) 1.2 else 1.0
+  # stab <- if (move_type %in% attacker_types) 1.2 else 1.0
 
   weather_mult <- get_weather_multiplier(move_type, weather)
   friendship_mult <- get_friendship_multiplier(friendship)
@@ -262,7 +263,7 @@ party_power_gain <- function(fast_duration) {
   fast_duration * 10
 }
 
-do_fast_move <- function(attacker, boss, time) {
+do_fast_move <- function(attacker, boss, time, weather, friendship) {
   stab <- get_stab(
     move_type = attacker$fast$type,
     type1 = attacker$type1,
@@ -292,7 +293,7 @@ do_fast_move <- function(attacker, boss, time) {
   list(attacker = attacker, boss = boss)
 }
 
-do_charged_move <- function(attacker, boss, time) {
+do_charged_move <- function(attacker, boss, time, weather, friendship) {
   is_party <- attacker$party_power >= 100
 
   mult <- if (is_party) PARTY_POWER_MULT else 1
@@ -356,7 +357,7 @@ get_friendship_multiplier <- function(friendship) {
   )
 }
 
-do_boss_fast <- function(attacker, boss, time) {
+do_boss_fast <- function(attacker, boss, time, weather, friendship = "none") {
 
   stab <- get_stab(
     boss$fast$type,
@@ -384,7 +385,7 @@ do_boss_fast <- function(attacker, boss, time) {
   list(attacker = attacker, boss = boss)
 }
 
-do_boss_charged <- function(attacker, boss, time) {
+do_boss_charged <- function(attacker, boss, time, weather, friendship = "none") {
 
   stab <- get_stab(
     boss$charged$type,
@@ -435,17 +436,17 @@ simulate_battle_timeline <- function(attacker, boss, max_time = 300, weather, fr
 if (attacker$next_action_time <= boss$next_action_time) {
 
   if (attacker$energy >= attacker$charged$energy) {
-    res <- do_charged_move(attacker, boss, time)
+    res <- do_charged_move(attacker, boss, time, weather, friendship)
   } else {
-    res <- do_fast_move(attacker, boss, time)
+    res <- do_fast_move(attacker, boss, time, weather, friendship)
   }
 
 } else {
 
   if (boss_can_charge(boss, time)) {
-    res <- do_boss_charged(attacker, boss, time)
+    res <- do_boss_charged(attacker, boss, time, weather)
   } else {
-    res <- do_boss_fast(attacker, boss, time)
+    res <- do_boss_fast(attacker, boss, time, weather)
   }
 
 }
@@ -477,24 +478,24 @@ boss <- build_boss(
   charged_move_id = "Hyper Beam"
 )
 
-result <- simulate_battle_timeline(attacker, boss, weather = "Sunny")
+result <- simulate_battle_timeline(attacker, boss, weather = "Sunny", friendship = "best")
 
 result$dps
 result$damage_done
 result
 
-user_pokemon %>%
-  slice(1) %>%
-  build_attacker(
-    pokemon_id = pokemon_id,
-    level = level,
-    fast_move_id = fast_move_id,
-    charged_move_id = charged_move_id
-   # shadow = shadow,
-   # iv_atk = iv_atk,
-   # iv_def = iv_def,
-   # iv_sta = iv_sta
-  )
+# user_pokemon %>%
+#   slice(1) %>%
+#   build_attacker(
+#     pokemon_id = pokemon_id,
+#     level = level,
+#     fast_move_id = fast_move_id,
+#     charged_move_id = charged_move_id
+#    # shadow = shadow,
+#    # iv_atk = iv_atk,
+#    # iv_def = iv_def,
+#    # iv_sta = iv_sta
+#   )
 
 user_pokemon <- user_pokemon %>%
   rowwise() %>%
@@ -520,7 +521,9 @@ results <- user_pokemon %>%
       attacker,
       ~ simulate_battle_timeline(
           attacker = .x,
-          boss = clone(boss)
+          boss = clone(boss),
+          weather = "Sunny",
+          friendship = "best"
         )
     )
   )
@@ -535,29 +538,3 @@ results_summary <- results %>%
     time = map_dbl(sim, "time")
   ) %>%
   select(-sim)
-
-library(furrr)
-
-plan(multisession)
-
-results <- user_pokemon %>%
-  mutate(
-    sim = future_map(
-      attacker,
-      ~ simulate_battle_timeline(.x, clone(boss))
-    )
-  )
-
-scenarios <- tidyr::crossing(
-  user_pokemon,
-  boss_id = c("regigigas", "kyogre"),
-  weather = c("clear", "windy")
-)
-
-results2 <- scenarios %>%
-  mutate(
-    sim = future_map(
-      attacker,
-      ~ simulate_battle_timeline(.x, clone(boss))
-    )
-  )
