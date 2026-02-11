@@ -78,32 +78,7 @@ move_combinations <- inner_join(
   pokemon_moves %>%
     inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
     select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
-) %>%
-  pivot_longer(
-    cols = c("fast_move", "charge_move"),
-    names_to = "category",
-    values_to = "name"
-  ) %>%
-  inner_join(
-    moves %>%
-      mutate(
-        energy_delta = (`Energy Gain` * 1) + (`Energy Cost` * -1),
-        duration_ms = Duration * 1000,
-        category = case_when(
-          `Move Type` == "Fast" ~ "fast_move",
-          `Move Type` == "Charge" ~ "charge_move"
-        )
-      ) %>%
-      select(
-        move_id = `Move Name`,
-        name = `Move Name`,
-        category,
-        power = Power,
-        energy_delta,
-        duration_ms,
-        type = Category
-      ), relationship = "many-to-many"
-  )
+)
 
 moves <- moves %>%
       mutate(
@@ -573,3 +548,99 @@ results_summary <- results %>%
     time = map_dbl(sim, "time")
   ) %>%
   select(-sim)
+
+
+bosses <- move_combinations %>%
+  filter(Pokemon == "Mewtwo") %>%
+  rowwise() %>%
+  mutate(boss = list(
+    build_boss(
+      pokemon_id = Pokemon,
+      tier = 5,
+      fast_move_id = fast_move,
+      charged_move_id = charge_move
+  ))) %>%
+  ungroup
+
+sim_grid <- tidyr::crossing(
+  user_pokemon,
+  bosses
+)
+
+clone <- function(x) unserialize(serialize(x, NULL))
+
+results <- sim_grid %>%
+  # slice(1:30) %>%
+  mutate(
+    sim = map2(
+      attacker,
+      boss,
+      ~ simulate_battle_timeline(
+          attacker   = .x,
+          boss       = clone(.y),
+          weather    = "Sunny",
+          friendship = "best"
+        )
+    )
+  )
+
+results_summary <- results %>%
+  mutate(
+    dps    = map_dbl(sim, "dps"),
+    damage = map_dbl(sim, "damage_done"),
+    time   = map_dbl(sim, "time")
+  ) %>%
+  select(
+    pokemon_id,
+    level,
+    fast_move_id,
+    charged_move_id,
+    boss_fast_move_id = fast_move,
+    boss_charged_move_id = charge_move,
+    dps,
+    damage,
+    time
+  )
+
+weathers <- weather_boosts %>% select(weather) %>% distinct()
+
+sim_grid <- tidyr::crossing(
+  user_pokemon,
+  bosses,
+  weathers
+)
+
+results <- sim_grid %>%
+  mutate(
+    sim = pmap(
+      list(attacker, boss, weather),
+      ~ simulate_battle_timeline(
+          attacker   = ..1,
+          boss       = clone(..2),
+          weather    = ..3,
+          friendship = "best"
+        )
+    )
+  )
+
+friendships <- tibble(friendship = c("none", "good", "great", "ultra", "best"))
+
+sim_grid <- tidyr::crossing(
+  user_pokemon,
+  bosses,
+  weathers,
+  friendships
+)
+
+results <- sim_grid %>%
+  mutate(
+    sim = pmap(
+      list(attacker, boss, weather, friendship),
+      ~ simulate_battle_timeline(
+          attacker   = ..1,
+          boss       = clone(..2),
+          weather    = ..3,
+          friendship = ..4
+        )
+    )
+  )
