@@ -551,7 +551,7 @@ results_summary <- results %>%
 
 
 bosses <- move_combinations %>%
-  filter(Pokemon == "Mewtwo") %>%
+  filter(!Pokemon %in% c("Charizard", "Bulbasaur", "Primal Kyogre", "Primal Groudon")) %>%
   rowwise() %>%
   mutate(boss = list(
     build_boss(
@@ -623,24 +623,46 @@ results <- sim_grid %>%
     )
   )
 
-friendships <- tibble(friendship = c("none", "good", "great", "ultra", "best"))
-
-sim_grid <- tidyr::crossing(
-  user_pokemon,
-  bosses,
-  weathers,
-  friendships
-)
-
-results <- sim_grid %>%
+results_summary <- results %>%
   mutate(
-    sim = pmap(
-      list(attacker, boss, weather, friendship),
-      ~ simulate_battle_timeline(
-          attacker   = ..1,
-          boss       = clone(..2),
-          weather    = ..3,
-          friendship = ..4
-        )
-    )
+    dps    = map_dbl(sim, "dps"),
+    damage = map_dbl(sim, "damage_done"),
+    time   = map_dbl(sim, "time")
+  ) %>%
+  select(
+    pokemon_id,
+    raid_boss = Pokemon,
+    level,
+    fast_move_id,
+    charged_move_id,
+    boss_fast_move_id = fast_move,
+    boss_charged_move_id = charge_move,
+    dps,
+    damage,
+    time,
+    weather
   )
+
+saveRDS(results_summary, "data/results_summary.RDS")
+
+# friendships <- tibble(friendship = c("none", "good", "great", "ultra", "best"))
+
+# sim_grid <- tidyr::crossing(
+#   user_pokemon,
+#   bosses,
+#   weathers,
+#   friendships
+# )
+
+# results <- sim_grid %>%
+#   mutate(
+#     sim = pmap(
+#       list(attacker, boss, weather, friendship),
+#       ~ simulate_battle_timeline(
+#           attacker   = ..1,
+#           boss       = clone(..2),
+#           weather    = ..3,
+#           friendship = ..4
+#         )
+#     )
+#   )
