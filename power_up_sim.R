@@ -74,14 +74,14 @@ level_multipliers <- readRDS("data/levels.rds") %>%
 
 move_combinations <- inner_join(
   pokemon_moves %>%
-    left_join(moves_ids %>% rename(`Move Name` = name)) %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
     select(Pokemon, `Move Name`, legacy) %>%
     inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
     select(Pokemon, fast_move = `Move Name`),
 
   pokemon_moves %>%
-    left_join(moves_ids %>% rename(`Move Name` = name)) %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
     select(Pokemon, `Move Name`, legacy) %>%
     inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
@@ -481,3 +481,76 @@ if (attacker$next_action_time <= boss$next_action_time) {
     dps = max(0, 15000 - boss$hp) / time
   )
 }
+
+power_up_pokemon <- user_pokemon %>% filter(pokemon_id == "Zekrom" & level == 25) %>%
+  mutate(level = 50) %>%
+  rowwise() %>%
+  mutate(
+    attacker = list(
+      build_attacker(
+        pokemon_id      = pokemon_id,
+        level           = level,
+        fast_move_id    = fast_move_id,
+        charged_move_id = charged_move_id
+      )
+    )
+  ) %>%
+  ungroup()
+
+bosses <- move_combinations %>%
+  filter(!Pokemon %in% c("Charizard", "Bulbasaur", "Primal Kyogre", "Primal Groudon")) %>%
+  rowwise() %>%
+  mutate(boss = list(
+    build_boss(
+      pokemon_id = Pokemon,
+      tier = 5,
+      fast_move_id = fast_move,
+      charged_move_id = charge_move
+  ))) %>%
+  ungroup
+
+weathers <- weather_boosts %>% select(weather) %>% distinct()
+
+sim_grid <- tidyr::crossing(
+  power_up_pokemon,
+  bosses,
+  weathers
+)
+
+clone <- function(x) unserialize(serialize(x, NULL))
+
+results <- sim_grid %>%
+  mutate(
+    sim = pmap(
+      list(attacker, boss, weather),
+      ~ simulate_battle_timeline(
+          attacker   = ..1,
+          boss       = clone(..2),
+          weather    = ..3,
+          friendship = "best"
+        )
+    )
+  )
+
+results_summary <- results %>%
+  mutate(
+    dps    = map_dbl(sim, "dps"),
+    damage = map_dbl(sim, "damage_done"),
+    time   = map_dbl(sim, "time")
+  ) %>%
+  select(
+    pokemon_id,
+    raid_boss = Pokemon,
+    level,
+    fast_move_id,
+    charged_move_id,
+    boss_fast_move_id = fast_move,
+    boss_charged_move_id = charge_move,
+    dps,
+    damage,
+    time,
+    weather
+  )
+
+
+saveRDS(results_summary, "data/powered_up_summary.RDS")
