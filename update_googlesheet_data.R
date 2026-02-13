@@ -2,7 +2,7 @@ library(googlesheets4)
 library(tidyverse)
 wb <- "https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/"
 
-base_stats <- read_sheet(,
+base_stats <- read_sheet(wb,
                           sheet = "Base Stats")
 
 levels <- read_sheet(wb,
@@ -42,4 +42,6 @@ saveRDS(levels, "data/levels.RDS")
 saveRDS(moves, "data/moves.RDS")                    
 saveRDS(pokemon_moves, "data/pokemon_moves.RDS")                    
 saveRDS(type_effectiveness, "data/type_effectiveness.RDS")                    
-saveRDS(weather, "data/weather.RDS")                    
+saveRDS(weather, "data/weather.RDS")   
+saveRDS(moves_ids, "data/move_ids.RDS")
+saveRDS(pokemon_ids, "data/pokemon_ids.RDS")
