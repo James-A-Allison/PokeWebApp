@@ -36,19 +36,7 @@ get_type_effectiveness <- function(atk, def1, def2 = NA) {
 
 }
 
-user_pokemon <- readRDS("data/user_pokemon.rds") %>%
-  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
-  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
-  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
-  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(pokemon_id = Pokemon,
-        level = `Level`,
-        iv_atk = `Attack IV`,
-        iv_def = `Defence IV`,
-        iv_sta = `HP IV`,
-          shadow,
-        fast_move_id = `Fast Move`,
-      charged_move_id = `Charge1`)
+mega_table <- readRDS("data/mega_table.RDS")
 
 base_stats <- readRDS("data/base_stats.rds") %>%
   select(
@@ -62,20 +50,76 @@ base_stats <- readRDS("data/base_stats.rds") %>%
     type2 = `Type 2`
   )
 
+
+user_pokemon <- readRDS("data/user_pokemon.rds") %>%
+  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
+  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
+  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
+  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
+  select(uuid = ID,
+        pokemon_id = Pokemon,
+        level = `Level`,
+        iv_atk = `Attack IV`,
+        iv_def = `Defence IV`,
+        iv_sta = `HP IV`,
+        shadow,
+        fast_move_id = `Fast Move`,
+        charged_move_id = `Charge1`,
+        Charge2)
+
+user_pokemon <- readRDS("data/user_pokemon.rds") %>%
+  filter(`Can Mega Evolve` == "Yes") %>%
+  rename(base_name = Pokemon) %>%
+  inner_join(mega_table) %>%
+  select(-c(`pokedex number`, base_name)) %>%
+  rename(Pokemon = Mega_name) %>%
+    mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
+  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
+  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
+  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
+  select(uuid = ID,
+        pokemon_id = Pokemon,
+        level = `Level`,
+        iv_atk = `Attack IV`,
+        iv_def = `Defence IV`,
+        iv_sta = `HP IV`,
+        shadow,
+        fast_move_id = `Fast Move`,
+        charged_move_id = `Charge1`,
+      Charge2) %>%
+  bind_rows(user_pokemon)
+
+user_pokemon <- bind_rows(user_pokemon %>%
+  filter(!is.na(Charge2)) %>%
+  select(-charged_move_id) %>%
+  rename(charged_move_id = Charge2),
+
+  user_pokemon %>%
+    # filter(is.na(Charge2)) %>%
+    select(-Charge2))
+
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
 weather_boosts <- readRDS("data/weather.rds")
 
+pokemon_ids <- readRDS("data/pokemon_ids.rds")
+move_ids <- readRDS("data/move_ids.rds")
 
 level_multipliers <- readRDS("data/levels.rds") %>%
   select(level = `Level`, cpm = `CP Multiplier`)
 
 move_combinations <- inner_join(
   pokemon_moves %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
+    select(Pokemon, `Move Name`, legacy) %>%
     inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
     select(Pokemon, fast_move = `Move Name`),
 
   pokemon_moves %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
+    select(Pokemon, `Move Name`, legacy) %>%
     inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
     select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
 )
@@ -474,25 +518,25 @@ if (attacker$next_action_time <= boss$next_action_time) {
   )
 }
 
-attacker <- build_attacker(
-  pokemon_id = "Mewtwo",
-  level = 50,
-  fast_move_id = "Psycho Cut",
-  charged_move_id = "Hyper Beam"
-)
+# attacker <- build_attacker(
+#   pokemon_id = "Mewtwo",
+#   level = 50,
+#   fast_move_id = "Psycho Cut",
+#   charged_move_id = "Hyper Beam"
+# )
 
-boss <- build_boss(
-  pokemon_id = "Mewtwo",
-  tier = 5,
-  fast_move_id = "Psycho Cut",
-  charged_move_id = "Hyper Beam"
-)
+# boss <- build_boss(
+#   pokemon_id = "Mewtwo",
+#   tier = 5,
+#   fast_move_id = "Psycho Cut",
+#   charged_move_id = "Hyper Beam"
+# )
 
-result <- simulate_battle_timeline(attacker, boss, weather = "Sunny", friendship = "best")
+# result <- simulate_battle_timeline(attacker, boss, weather = "Sunny", friendship = "best")
 
-result$dps
-result$damage_done
-result
+# result$dps
+# result$damage_done
+# result
 
 # user_pokemon %>%
 #   slice(1) %>%
@@ -521,37 +565,38 @@ user_pokemon <- user_pokemon %>%
   ) %>%
   ungroup()
 
-user_pokemon$attacker[[1]]
+# user_pokemon$attacker[[1]]
 
-clone <- function(x) unserialize(serialize(x, NULL))
+# clone <- function(x) unserialize(serialize(x, NULL))
 
-results <- user_pokemon %>%
-  mutate(
-    sim = map(
-      attacker,
-      ~ simulate_battle_timeline(
-          attacker = .x,
-          boss = clone(boss),
-          weather = "Sunny",
-          friendship = "best"
-        )
-    )
-  )
+# results <- user_pokemon %>%
+#   mutate(
+#     sim = map(
+#       attacker,
+#       ~ simulate_battle_timeline(
+#           attacker = .x,
+#           boss = clone(boss),
+#           weather = "Sunny",
+#           friendship = "best"
+#         )
+#     )
+#   )
 
-results$sim[[1]]$dps
-results$sim[[2]]$damage_done
+# results$sim[[1]]$dps
+# results$sim[[2]]$damage_done
 
-results_summary <- results %>%
-  mutate(
-    dps = map_dbl(sim, "dps"),
-    damage = map_dbl(sim, "damage_done"),
-    time = map_dbl(sim, "time")
-  ) %>%
-  select(-sim)
+# results_summary <- results %>%
+#   mutate(
+#     dps = map_dbl(sim, "dps"),
+#     damage = map_dbl(sim, "damage_done"),
+#     time = map_dbl(sim, "time")
+#   ) %>%
+#   select(-sim)
 
 
 bosses <- move_combinations %>%
-  filter(!Pokemon %in% c("Charizard", "Bulbasaur", "Primal Kyogre", "Primal Groudon")) %>%
+  filter(!Pokemon %in% c("Charizard", "Bulbasaur", "Primal Kyogre", "Primal Groudon", 
+"Diancie", "Mega Absol", "Articuno-Galarian")) %>%
   rowwise() %>%
   mutate(boss = list(
     build_boss(
