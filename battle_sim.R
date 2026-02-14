@@ -607,66 +607,144 @@ bosses <- move_combinations %>%
   ))) %>%
   ungroup
 
-sim_grid <- tidyr::crossing(
-  user_pokemon,
-  bosses
-)
+# sim_grid <- tidyr::crossing(
+#   user_pokemon,
+#   bosses
+# )
 
 clone <- function(x) unserialize(serialize(x, NULL))
 
-results <- sim_grid %>%
-  # slice(1:30) %>%
-  mutate(
-    sim = map2(
-      attacker,
-      boss,
-      ~ simulate_battle_timeline(
-          attacker   = .x,
-          boss       = clone(.y),
-          weather    = "Sunny",
-          friendship = "best"
-        )
-    )
-  )
+# results <- sim_grid %>%
+#   # slice(1:30) %>%
+#   mutate(
+#     sim = map2(
+#       attacker,
+#       boss,
+#       ~ simulate_battle_timeline(
+#           attacker   = .x,
+#           boss       = clone(.y),
+#           weather    = "Sunny",
+#           friendship = "best"
+#         )
+#     )
+#   )
 
-results_summary <- results %>%
-  mutate(
-    dps    = map_dbl(sim, "dps"),
-    damage = map_dbl(sim, "damage_done"),
-    time   = map_dbl(sim, "time")
-  ) %>%
-  select(
-    pokemon_id,
-    level,
-    fast_move_id,
-    charged_move_id,
-    boss_fast_move_id = fast_move,
-    boss_charged_move_id = charge_move,
-    dps,
-    damage,
-    time
-  )
+# results_summary <- results %>%
+#   mutate(
+#     dps    = map_dbl(sim, "dps"),
+#     damage = map_dbl(sim, "damage_done"),
+#     time   = map_dbl(sim, "time")
+#   ) %>%
+#   select(
+#     pokemon_id,
+#     level,
+#     fast_move_id,
+#     charged_move_id,
+#     boss_fast_move_id = fast_move,
+#     boss_charged_move_id = charge_move,
+#     dps,
+#     damage,
+#     time
+#   )
 
 weathers <- weather_boosts %>% select(weather) %>% distinct()
 
 sim_grid <- tidyr::crossing(
   user_pokemon,
   bosses,
-  weathers
-)
+  weathers)
 
-results <- sim_grid %>%
-  mutate(
-    sim = pmap(
-      list(attacker, boss, weather),
+# test <- sim_grid %>%
+#   # slice(1:30) %>%
+#   mutate(
+#     sim = map2(
+#       attacker,
+#       boss,
+#       ~ simulate_battle_timeline(
+#           attacker   = .x,
+#           boss       = .y,
+#           weather    = weather,
+#           friendship = "best"
+#         )
+#     )
+#   )
+
+n_workers <- 10
+# Setup parallelization
+future::plan(future::multisession, workers=n_workers)
+
+
+
+library(foreach)
+library(doParallel)
+
+n_cores <- detectCores()
+n_cores
+
+cluster <- makeCluster(n_cores - 1)
+registerDoParallel(cluster)
+
+sim_list <- foreach(
+i = seq_len(nrow(sim_grid)),
+  .packages = c("dplyr", "purrr"),
+  .combine = "rbind"
+) %dopar% {
+    sim_grid %>%
+    slice(i) %>%
+    mutate(sim = map2(
+      attacker,
+      boss,
       ~ simulate_battle_timeline(
-          attacker   = ..1,
-          boss       = clone(..2),
-          weather    = ..3,
+          attacker   = .x,
+          boss       = .y,
+          weather    = weather,
           friendship = "best"
         )
-    )
-  )
+    ))
+}
+
+# sim_grid %>%
+#   mutate(sim = map2(attacker,
+
+#     simulate_battle_timeline(
+#       attacker = attacker, 
+#       boss = boss,
+#       weather = weather,
+#       max_time = 300,
+#       friendship = "best")))
+
+# sim_list <- foreach(
+#   i = seq_len(nrow(sim_grid)),
+#   .packages = c("dplyr", "purrr"),
+#   .combine = "rbind"
+# ) %dopar% {
+#   sim_grid %>%
+#     slice(i) %>%
+
+#   simulate_battle_timeline(
+#     attacker   = clone(sim_grid$attacker[[i]]),
+#     boss       = clone(sim_grid$boss[[i]]),
+#     weather    = sim_grid$weather[[i]],
+#     friendship = "best"
+#   )
+# }
+
+# results <- sim_grid %>%
+#   mutate(sim = sim_list)
+
+
+# results <- sim_grid %>%
+#   mutate(
+#     sim = pmap(
+#       list(attacker, boss, weather),
+#       ~ simulate_battle_timeline(
+#           attacker   = ..1,
+#           boss       = clone(..2),
+#           weather    = ..3,
+#           friendship = "best"
+#         )
+#     )
+#   )
 
 results_summary <- results %>%
   mutate(
