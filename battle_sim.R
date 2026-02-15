@@ -683,7 +683,7 @@ library(foreach)
 library(doParallel)
 
 n_cores <- detectCores()
-n_cores
+# n_cores
 
 cluster <- makeCluster(n_cores - 1)
 registerDoParallel(cluster)
