@@ -1,11 +1,12 @@
 library(tidyverse)
+library(shiny)
 
 results_summary <- readRDS("data/results_summary.RDS")
 powered_up_summary <- readRDS("data/powered_up_summary.RDS")
 
 boss_summary <- results_summary %>%
   group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
-  mutate(dmg_rank = rank(desc(damage), ties.method = "random")) %>%
+  mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
   filter(dmg_rank <= 6) %>%
   summarise(damage = sum(damage),
             time = sum(time)) %>%
@@ -19,7 +20,7 @@ powered_up_scenario <- results_summary %>%
   filter(!(pokemon_id == "Zekrom" & level == 25)) %>%
   bind_rows(powered_up_summary) %>%
     group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
-  mutate(dmg_rank = rank(desc(damage), ties.method = "random")) %>%
+  mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
   filter(dmg_rank <= 6) %>%
   summarise(damage = sum(damage),
             time = sum(time)) %>%
@@ -120,3 +121,11 @@ results_summary %>%
   arrange(desc(avg_dps)) %>%
   ggplot(aes(y = reorder(raid_boss, avg_dps), x = dps)) +
   geom_violin()
+
+results_summary %>%
+  group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
+  mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
+  group_by(uuid, pokemon_id, level, fast_move_id, charged_move_id) %>%
+  summarise(scenarios_top_6 = length(dmg_rank[dmg_rank <= 6]),
+            scenarios_top_12 = length(dmg_rank[dmg_rank <= 12])) %>%
+  arrange(desc(scenarios_top_12))
