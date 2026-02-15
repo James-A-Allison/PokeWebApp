@@ -109,29 +109,25 @@ def extract_moves(pokemon_url):
 
 
 def main():
-    pokemon_links = extract_pokemon_links()
+    TOTAL_POKEMON = 1025
+    BASE_URL = "https://db.pokemongohub.net/pokemon"
 
     all_rows = []
 
-    for i, link in enumerate(pokemon_links, start=1):
-        print(f"[{i}/{len(pokemon_links)}] Scraping {link}")
+    for i in range(1, TOTAL_POKEMON + 1):
+        link = f"{BASE_URL}/{i}"
+
+        print(f"[{i}/{TOTAL_POKEMON}] Scraping {link}")
+
         moves = extract_moves(link)
-        all_rows.extend(moves)
+
+        # Some IDs may not exist or may redirect
+        if moves:
+            all_rows.extend(moves)
 
         time.sleep(1)  # rate limit
 
     print(f"Collected {len(all_rows)} move records")
-
-    # Save CSV
-    with open("pokemon_moves.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=["Pokemon", "Move", "Move_Type", "Legacy"]
-        )
-        writer.writeheader()
-        writer.writerows(all_rows)
-
-    print("Saved to pokemon_moves.csv")
 
 
 if __name__ == "__main__":

@@ -746,13 +746,14 @@ i = seq_len(nrow(sim_grid)),
 #     )
 #   )
 
-results_summary <- results %>%
+results_summary <- sim_list %>%
   mutate(
     dps    = map_dbl(sim, "dps"),
     damage = map_dbl(sim, "damage_done"),
     time   = map_dbl(sim, "time")
   ) %>%
   select(
+    uuid,
     pokemon_id,
     raid_boss = Pokemon,
     level,

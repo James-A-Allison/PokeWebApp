@@ -1,6 +1,7 @@
 library(googlesheets4)
 library(shiny)
 library(DT)
+library(dplyr)
 SHEET_ID <- "https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/"
 
 
@@ -20,7 +21,12 @@ ui <- fluidPage(
 
       hr(),
 
-      actionButton("remove_move", "Remove Selected Move")
+      actionButton("remove_move", "Remove Selected Move"),
+
+      hr(),
+
+      actionButton("sync", "Sync to Google Sheets")
+
     ),
 
     mainPanel(
@@ -39,10 +45,10 @@ server <- function(input, output, session) {
   )
 
   refresh_data <- function() {
-    data$pokemon <- read_sheet(SHEET_ID, sheet = "pokemon_ids")
-    data$moves <- read_sheet(SHEET_ID, sheet = "move_ids")
-    data$pokemon_moves <- read_sheet(SHEET_ID, sheet = "pokemon_moves")
-    data$last_refresh <- Sys.time()
+    data$pokemon <- readRDS("data/pokemon_ids.rds")
+    data$moves <- readRDS("data/move_ids.rds")
+    data$pokemon_moves <- readRDS("data/pokemon_moves.rds")
+    # data$last_refresh <- Sys.time()
   }
 
   # load once on startup
@@ -99,20 +105,6 @@ output$current_moves <- DT::renderDataTable({
   # Add move
   observeEvent(input$add_move, {
     req(input$pokemon, input$move)
-    # print(input$pokemon)
-    # print(input$move)
-
-    # pokemon_id <- data$pokemon %>%
-    #   filter(name == input$pokemon) %>%
-    #   pull(pokemon_id)
-    
-    # print(pokemon_id)
-
-    # move_id <- data$moves %>%
-    #   filter(name == input$move) %>%
-    #   pull(move_id)
-    
-    # print(move_id)
 
     new_row <- tibble(
         pokemon_id = as.numeric(input$pokemon),
@@ -126,7 +118,7 @@ output$current_moves <- DT::renderDataTable({
       distinct()
 
     # print(new_row)
-    write_sheet(updated, ss = SHEET_ID, sheet = "pokemon_moves")
+    saveRDS(updated, "data/pokemon_moves.RDS")
     refresh_data()
   })
 
@@ -145,7 +137,13 @@ output$current_moves <- DT::renderDataTable({
       by = c("pokemon_id", "move_id", "legacy")
     )
 
-    write_sheet(updated, ss = SHEET_ID, sheet = "pokemon_moves")
+    saveRDS(updated, "data/pokemon_moves.RDS")
+    refresh_data()
+  })
+
+    observeEvent(input$sync, { ## syncs back to Google Sheets
+
+    write_sheet(data$pokemon_moves, ss = SHEET_ID, sheet = "pokemon_moves")
     refresh_data()
   })
 }

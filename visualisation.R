@@ -97,4 +97,5 @@ bind_rows(
   powered_up_scenario %>% mutate(Version = "After Power Up")) %>%
   select(raid_boss, Version, mean_dps) %>%
   tidyr::pivot_wider(names_from = Version, values_from = mean_dps) %>%
-  mutate(delta = `After Power Up` - Current)
+  mutate(delta = `After Power Up` - Current) %>%
+  arrange(desc(delta))
