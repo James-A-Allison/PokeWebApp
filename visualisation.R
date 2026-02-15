@@ -99,3 +99,24 @@ bind_rows(
   tidyr::pivot_wider(names_from = Version, values_from = mean_dps) %>%
   mutate(delta = `After Power Up` - Current) %>%
   arrange(desc(delta))
+
+
+results_summary %>%
+  group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
+  mutate(dmg_rank = rank(desc(damage), ties.method = "random")) %>%
+  filter(dmg_rank <= 6) %>%
+  filter()
+
+results_summary %>%
+  group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
+  mutate(dmg_rank = rank(desc(damage), ties.method = "random")) %>%
+  filter(dmg_rank <= 6) %>%
+  summarise(damage = sum(damage),
+            time = sum(time)) %>%
+  mutate(dps = damage/time) %>%
+  group_by(raid_boss) %>%
+  mutate(avg_dps = mean(dps)) %>%
+  ungroup() %>%
+  arrange(desc(avg_dps)) %>%
+  ggplot(aes(y = reorder(raid_boss, avg_dps), x = dps)) +
+  geom_violin()

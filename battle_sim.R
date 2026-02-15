@@ -38,6 +38,11 @@ get_type_effectiveness <- function(atk, def1, def2 = NA) {
 
 mega_table <- readRDS("data/mega_table.RDS")
 
+tier_5_bosses <- readRDS("data/base_stats.rds") %>%
+  filter(`Raid Boss Tier` == 5) %>%
+  select(Pokemon = name) %>%
+  distinct()
+
 base_stats <- readRDS("data/base_stats.rds") %>%
   select(
     pokemon_id = name,
@@ -595,8 +600,7 @@ user_pokemon <- user_pokemon %>%
 
 
 bosses <- move_combinations %>%
-  filter(!Pokemon %in% c("Charizard", "Bulbasaur", "Primal Kyogre", "Primal Groudon", 
-"Diancie", "Mega Absol", "Articuno-Galarian")) %>%
+  inner_join(tier_5_bosses) %>%
   rowwise() %>%
   mutate(boss = list(
     build_boss(
@@ -612,7 +616,7 @@ bosses <- move_combinations %>%
 #   bosses
 # )
 
-clone <- function(x) unserialize(serialize(x, NULL))
+# clone <- function(x) unserialize(serialize(x, NULL))
 
 # results <- sim_grid %>%
 #   # slice(1:30) %>%
