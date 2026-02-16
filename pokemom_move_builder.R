@@ -9,6 +9,29 @@ pokemon <- readRDS("data/pokemon_ids.rds")
 moves <- readRDS("data/move_ids.rds")
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 
+base_data <- readRDS("data/base_stats.RDS") %>%
+  select(name, `Lv 40 CP`) %>%
+  filter(!is.na(`Lv 40 CP`)) %>%
+  distinct()
+
+pokemon %>%
+  left_join(base_data) %>%
+  rename(Pokemon = name) %>%
+  left_join(pokemon_moves) %>%
+  left_join(moves %>% rename(Move_Name = name)) %>%
+  filter(legacy == "No" | is.na(legacy)) %>%
+  group_by(Pokemon, pokemon_id, `Lv 40 CP`) %>%
+  summarise(n_fast = n_distinct(move_id[category == "Fast"], na.rm = TRUE),
+            n_charge = n_distinct(move_id[category == "Charge"], na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(valid = if_else(n_fast > 0 & n_charge > 0, "Yes", "No")) %>%
+  filter(valid == "No",
+          !grepl("Arceus", Pokemon),
+          !Pokemon %in% c("Eternamax Eternatus", "Ultra Necrozma", "Calyrex-Shadow Rider", "Calyrex-Ice Rider") ) %>%
+  arrange(desc(`Lv 40 CP`)) %>%
+  slice(1:5) %>%
+  select(Pokemon)
+
 move_dex_completion <- pokemon %>%
   rename(Pokemon = name) %>%
   left_join(pokemon_moves) %>%
@@ -46,9 +69,14 @@ ui <- fluidPage(
       hr(),
 
       actionButton("sync", "Sync to Google Sheets"),
+      
+      hr(),
 
-      tags$progress(value = move_dex_completion * 100, max = 100, style = "width: 100%; height: 20px;")
+      tags$progress(value = move_dex_completion * 100, max = 100, style = "width: 100%; height: 20px;"),
 
+      hr(),
+
+      tableOutput("best_mon_missing_moves")
     ),
 
     mainPanel(
@@ -89,6 +117,10 @@ server <- function(input, output, session) {
       )
     )
   })
+
+output$best_mon_missing_moves <- renderTable({
+
+})
 
   # Update move selector
   observeEvent(input$pokemon, {
