@@ -5,6 +5,26 @@ library(dplyr)
 SHEET_ID <- "https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/"
 
 
+pokemon <- readRDS("data/pokemon_ids.rds")
+moves <- readRDS("data/move_ids.rds")
+pokemon_moves <- readRDS("data/pokemon_moves.rds")
+
+move_dex_completion <- pokemon %>%
+  rename(Pokemon = name) %>%
+  left_join(pokemon_moves) %>%
+  left_join(moves %>% rename(Move_Name = name)) %>%
+  filter(legacy == "No" | is.na(legacy)) %>%
+  group_by(Pokemon, pokemon_id) %>%
+  summarise(n_fast = n_distinct(move_id[category == "Fast"], na.rm = TRUE),
+            n_charge = n_distinct(move_id[category == "Charge"], na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(valid = if_else(n_fast > 0 & n_charge > 0, "Yes", "No")) %>%
+  group_by(valid) %>%
+  summarise(Count = n()) %>%
+  mutate(Total = sum(Count),
+        Share = Count/Total) %>%
+  filter(valid == "Yes") %>%
+  pull
 
 # refresh_data()
 
@@ -25,7 +45,9 @@ ui <- fluidPage(
 
       hr(),
 
-      actionButton("sync", "Sync to Google Sheets")
+      actionButton("sync", "Sync to Google Sheets"),
+
+      tags$progress(value = move_dex_completion * 100, max = 100, style = "width: 100%; height: 20px;")
 
     ),
 
