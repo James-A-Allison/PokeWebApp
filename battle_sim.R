@@ -7,9 +7,9 @@ PARTY_POWER_MULT <- 2
 BOSS_CHARGE_COOLDOWN <- 2.5
 
 raid_boss_tiers <- tibble::tibble(
-  tier = c(5),
-  hp = c(15000),
-  cpm = c(0.7903)
+  tier = c(6, 5, 4),
+  hp = c(22500, 15000, 9000),
+  cpm = c(0.7903, 0.7903, 0.7903)
 )
 
 ## Data
@@ -38,10 +38,11 @@ get_type_effectiveness <- function(atk, def1, def2 = NA) {
 
 mega_table <- readRDS("data/mega_table.RDS")
 
-tier_5_bosses <- readRDS("data/base_stats.rds") %>%
-  filter(`Raid Boss Tier` == 5) %>%
-  select(Pokemon = name) %>%
-  distinct()
+raid_bosses <- readRDS("data/base_stats.rds") %>%
+  filter(`Raid Boss Tier` > 3) %>%
+  select(Pokemon = name, tier = `Raid Boss Tier`) %>%
+  distinct() %>%
+  left_join(raid_boss_tiers)
 
 base_stats <- readRDS("data/base_stats.rds") %>%
   select(
@@ -600,12 +601,12 @@ user_pokemon <- user_pokemon %>%
 
 
 bosses <- move_combinations %>%
-  inner_join(tier_5_bosses) %>%
+  inner_join(raid_bosses) %>%
   rowwise() %>%
   mutate(boss = list(
     build_boss(
       pokemon_id = Pokemon,
-      tier = 5,
+      tier = tier,
       fast_move_id = fast_move,
       charged_move_id = charge_move
   ))) %>%
@@ -656,7 +657,8 @@ weathers <- weather_boosts %>% select(weather) %>% distinct()
 sim_grid <- tidyr::crossing(
   user_pokemon,
   bosses,
-  weathers)
+  weathers) %>%
+    slice(1:1000)
 
 # test <- sim_grid %>%
 #   # slice(1:30) %>%
@@ -673,39 +675,116 @@ sim_grid <- tidyr::crossing(
 #     )
 #   )
 
-n_workers <- 10
+# n_workers <- 10
 # Setup parallelization
-future::plan(future::multisession, workers=n_workers)
+# future::plan(future::multisession, workers=n_workers)
 
 
 
-library(foreach)
-library(doParallel)
+# library(foreach)
+# library(doParallel)
+# library(doSNOW)
+# library(progress)
 
-n_cores <- detectCores()
+# n_cores <- detectCores()
 # n_cores
 
-cluster <- makeCluster(n_cores - 1)
-registerDoParallel(cluster)
+# cluster <- makeCluster(n_cores - 1)
+# registerDoParallel(cluster)
 
-sim_list <- foreach(
-i = seq_len(nrow(sim_grid)),
-  .packages = c("dplyr", "purrr"),
-  .combine = "rbind"
-) %dopar% {
-    sim_grid %>%
-    slice(i) %>%
-    mutate(sim = map2(
-      attacker,
-      boss,
-      ~ simulate_battle_timeline(
-          attacker   = .x,
-          boss       = .y,
-          weather    = weather,
-          friendship = "best"
-        )
-    ))
-}
+# cl <- makeCluster(parallel::detectCores() - 2)
+# registerDoSNOW(cl)
+
+# pb <- txtProgressBar(max = nrow(sim_grid), style = 3)
+
+# pb <- progress_bar$new(
+#   format = "[:bar] :elapsed | eta: :eta",
+#   total = nrow(sim_grid),    # 100 
+#   width = 60)
+
+# progress <- function(n) setTxtProgressBar(pb, n)
+# opts <- list(progress = progress)
+
+library(doFuture)
+library(future)
+library(progressr)
+library(furrr)
+
+registerDoFuture()
+plan(multisession, workers = 10)  # or however many
+
+print(Sys.time())
+
+# plan(multisession, workers = 4)
+
+options(progressr.enable = TRUE)
+
+with_progress({
+
+  p <- progressor(along = seq_len(nrow(sim_grid)))
+
+  sim_list <- future_map(
+    seq_len(nrow(sim_grid)),
+    function(i) {
+
+      p()
+
+      sim_grid %>%
+        slice(i) %>%
+        mutate(sim = map2(
+          attacker,
+          boss,
+          ~ simulate_battle_timeline(
+              attacker   = .x,
+              boss       = .y,
+              weather    = weather,
+              friendship = "best"
+            )
+        ))
+    }
+  ) %>%
+    list_rbind()
+
+})
+
+
+# library(progressr)
+
+# # handlers("progress")
+
+# handlers(handler_progress(
+#   format = ":bar :percent | elapsed: :elapsed | eta: :eta"
+# ))
+
+# with_progress({
+#   p <- progressor(steps = nrow(sim_grid))
+
+# sim_list <- foreach(
+# i = seq_len(nrow(sim_grid)),
+#   .packages = c("dplyr", "purrr"),
+#   .combine = "rbind"
+#   # .options.snow = opts
+# ) %dopar% {
+  
+#   p()
+
+#     sim_grid %>%
+#     slice(i) %>%
+#     mutate(sim = map2(
+#       attacker,
+#       boss,
+#       ~ simulate_battle_timeline(
+#           attacker   = .x,
+#           boss       = .y,
+#           weather    = weather,
+#           friendship = "best"
+#         )
+#     ))
+# }
+# })
+
+# # close(pb)
+# stopCluster(cl)
 
 # sim_grid %>%
 #   mutate(sim = map2(attacker,
@@ -768,7 +847,8 @@ results_summary <- sim_list %>%
     dps,
     damage,
     time,
-    weather
+    weather,
+    tier
   )
 
 saveRDS(results_summary, "data/results_summary.RDS")

@@ -10,46 +10,12 @@ moves <- readRDS("data/move_ids.rds")
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 
 base_data <- readRDS("data/base_stats.RDS") %>%
-  select(name, `Lv 40 CP`) %>%
-  filter(!is.na(`Lv 40 CP`)) %>%
+  select(name, `Lv 40 CP`, Released) %>%
+  filter(!is.na(`Lv 40 CP`),
+          (Released == "Yes" | is.na(Released))
+        ) %>%
   distinct()
 
-pokemon %>%
-  left_join(base_data) %>%
-  rename(Pokemon = name) %>%
-  left_join(pokemon_moves) %>%
-  left_join(moves %>% rename(Move_Name = name)) %>%
-  filter(legacy == "No" | is.na(legacy)) %>%
-  group_by(Pokemon, pokemon_id, `Lv 40 CP`) %>%
-  summarise(n_fast = n_distinct(move_id[category == "Fast"], na.rm = TRUE),
-            n_charge = n_distinct(move_id[category == "Charge"], na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(valid = if_else(n_fast > 0 & n_charge > 0, "Yes", "No")) %>%
-  filter(valid == "No",
-          !grepl("Arceus", Pokemon),
-          !Pokemon %in% c("Eternamax Eternatus", "Ultra Necrozma", "Calyrex-Shadow Rider", "Calyrex-Ice Rider") ) %>%
-  arrange(desc(`Lv 40 CP`)) %>%
-  slice(1:5) %>%
-  select(Pokemon)
-
-move_dex_completion <- pokemon %>%
-  rename(Pokemon = name) %>%
-  left_join(pokemon_moves) %>%
-  left_join(moves %>% rename(Move_Name = name)) %>%
-  filter(legacy == "No" | is.na(legacy)) %>%
-  group_by(Pokemon, pokemon_id) %>%
-  summarise(n_fast = n_distinct(move_id[category == "Fast"], na.rm = TRUE),
-            n_charge = n_distinct(move_id[category == "Charge"], na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(valid = if_else(n_fast > 0 & n_charge > 0, "Yes", "No")) %>%
-  group_by(valid) %>%
-  summarise(Count = n()) %>%
-  mutate(Total = sum(Count),
-        Share = Count/Total) %>%
-  filter(valid == "Yes") %>%
-  pull
-
-# refresh_data()
 
 ui <- fluidPage(
   titlePanel("Pokémon Move Manager"),
@@ -72,7 +38,7 @@ ui <- fluidPage(
       
       hr(),
 
-      tags$progress(value = move_dex_completion * 100, max = 100, style = "width: 100%; height: 20px;"),
+      uiOutput("completion_bar"),
 
       hr(),
 
@@ -104,6 +70,41 @@ server <- function(input, output, session) {
   # load once on startup
   refresh_data()
 
+  
+  move_dex_completion <- reactive({
+
+  req(data$pokemon, data$pokemon_moves, data$moves)
+
+  data$pokemon %>%
+    inner_join(base_data) %>%
+    rename(Pokemon = name) %>%
+    left_join(data$pokemon_moves) %>%
+    left_join(data$moves %>% rename(Move_Name = name)) %>%
+    filter(legacy == "No" | is.na(legacy)) %>%
+    group_by(Pokemon, pokemon_id, `Lv 40 CP`) %>%
+    summarise(n_fast = n_distinct(move_id[category == "Fast"], na.rm = TRUE),
+              n_charge = n_distinct(move_id[category == "Charge"], na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(valid = if_else(n_fast > 0 & n_charge > 0, "Yes", "No")) %>%
+      count(valid, name = "Count") %>%
+      mutate(
+        Total = sum(Count),
+        Share = Count / Total
+      ) %>%
+      filter(valid == "Yes") %>%
+      pull(Share)
+  })
+    
+  output$completion_bar <- renderUI({
+
+    percent <- round(move_dex_completion() * 100)
+
+    tags$progress(
+      value = percent,
+      max = 100,
+      style = "width: 100%; height: 25px;"
+    )
+  })
   # Populate Pokémon selector
   observe({
     req(data$pokemon)
@@ -119,7 +120,23 @@ server <- function(input, output, session) {
   })
 
 output$best_mon_missing_moves <- renderTable({
+  req(data$pokemon, data$pokemon_moves, data$moves)
 
+  data$pokemon %>%
+    inner_join(base_data) %>%
+    rename(Pokemon = name) %>%
+    left_join(data$pokemon_moves) %>%
+    left_join(data$moves %>% rename(Move_Name = name)) %>%
+    filter(legacy == "No" | is.na(legacy)) %>%
+    group_by(Pokemon, pokemon_id, `Lv 40 CP`) %>%
+    summarise(n_fast = n_distinct(move_id[category == "Fast"], na.rm = TRUE),
+              n_charge = n_distinct(move_id[category == "Charge"], na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(valid = if_else(n_fast > 0 & n_charge > 0, "Yes", "No")) %>%
+    filter(valid == "No") %>%
+    arrange(desc(`Lv 40 CP`)) %>%
+    slice(1:5) %>%
+    select(Pokemon)
 })
 
   # Update move selector
