@@ -39,7 +39,8 @@ get_type_effectiveness <- function(atk, def1, def2 = NA) {
 mega_table <- readRDS("data/mega_table.RDS")
 
 raid_bosses <- readRDS("data/base_stats.rds") %>%
-  filter(`Raid Boss Tier` > 3) %>%
+  # filter(`Raid Boss Tier` > 3) %>%
+  filter(`Raid Boss Tier` > 5) %>%
   select(Pokemon = name, tier = `Raid Boss Tier`) %>%
   distinct() %>%
   left_join(raid_boss_tiers)
@@ -79,7 +80,7 @@ user_pokemon <- readRDS("data/user_pokemon.rds") %>%
   inner_join(mega_table) %>%
   select(-c(`pokedex number`, base_name)) %>%
   rename(Pokemon = Mega_name) %>%
-    mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
+  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
   mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
   mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
@@ -114,11 +115,12 @@ move_ids <- readRDS("data/move_ids.rds")
 level_multipliers <- readRDS("data/levels.rds") %>%
   select(level = `Level`, cpm = `CP Multiplier`)
 
-move_combinations <- inner_join(
+boss_move_combinations <- inner_join(
   pokemon_moves %>%
     left_join(move_ids %>% rename(`Move Name` = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
     select(Pokemon, `Move Name`, legacy) %>%
+    filter(legacy == "No") %>%
     inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
     select(Pokemon, fast_move = `Move Name`),
 
@@ -126,6 +128,7 @@ move_combinations <- inner_join(
     left_join(move_ids %>% rename(`Move Name` = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
     select(Pokemon, `Move Name`, legacy) %>%
+    filter(legacy == "No") %>%
     inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
     select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
 )
@@ -480,6 +483,7 @@ boss_can_charge <- function(boss, time) {
 simulate_battle_timeline <- function(attacker, boss, max_time = 300, weather, friendship) {
   time <- 0
   damage_done <- 0
+  starting_hp <- boss$hp
   # browser()
   while (
     attacker$hp > 0 &&
@@ -519,8 +523,8 @@ if (attacker$next_action_time <= boss$next_action_time) {
     time = time,
     boss_hp = boss$hp,
     attacker_hp = attacker$hp,
-    damage_done = max(0, 15000 - boss$hp),
-    dps = max(0, 15000 - boss$hp) / time
+    damage_done = max(0, starting_hp - boss$hp),
+    dps = max(0, starting_hp - boss$hp) / time
   )
 }
 
@@ -600,7 +604,7 @@ user_pokemon <- user_pokemon %>%
 #   select(-sim)
 
 
-bosses <- move_combinations %>%
+bosses <- boss_move_combinations %>%
   inner_join(raid_bosses) %>%
   rowwise() %>%
   mutate(boss = list(
@@ -657,8 +661,7 @@ weathers <- weather_boosts %>% select(weather) %>% distinct()
 sim_grid <- tidyr::crossing(
   user_pokemon,
   bosses,
-  weathers) %>%
-    slice(1:1000)
+  weathers)
 
 # test <- sim_grid %>%
 #   # slice(1:30) %>%
@@ -718,6 +721,7 @@ print(Sys.time())
 # plan(multisession, workers = 4)
 
 options(progressr.enable = TRUE)
+options(future.globals.maxSize= 891289600)
 
 with_progress({
 

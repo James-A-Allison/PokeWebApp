@@ -4,6 +4,10 @@ library(shiny)
 
 results_summary <- readRDS("data/results_summary.RDS")
 powered_up_summary <- readRDS("data/powered_up_summary.RDS")
+upcoming_raids <- readRDS("data/calendar.RDS") %>%
+  filter(To >= Sys.Date()) %>%
+  select(raid_boss = `Raid Boss`,
+        tier = Tier)
 
 ui <- dashboardPage(
   dashboardHeader(title = "Pokemon Go Strategic Team Builder"),
@@ -22,7 +26,7 @@ ui <- dashboardPage(
             box(tableOutput("useful_mons"))
                  )
              )
-            ),
+            ,
     tabItems(
       tabItem(tabName = "boss_deep_dive",
               h2("WIP")
@@ -34,13 +38,14 @@ ui <- dashboardPage(
     )
   )
 )
+)
 
 
 server <- function(input, output) { 
   output$summary_voilin <- renderPlot({
       results_summary %>%
         group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
-        mutate(dmg_rank = rank(desc(damage), ties.method = "random")) %>%
+        mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
         filter(dmg_rank <= 6) %>%
         summarise(damage = sum(damage),
                   time = sum(time)) %>%
@@ -171,5 +176,20 @@ shinyApp(ui, server)
 #   filter()
 
 
+      results_summary %>%
+        inner_join(upcoming_raids) %>%
+        group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
+        mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
+        filter(dmg_rank <= 6) %>%
+        summarise(damage = sum(damage),
+                  time = sum(time)) %>%
+        mutate(dps = damage/time) %>%
+        group_by(raid_boss) %>%
+        mutate(avg_dps = mean(dps)) %>%
+        ungroup() %>%
+        arrange(desc(avg_dps)) %>%
+        ggplot(aes(y = reorder(raid_boss, avg_dps), x = dps)) +
+        geom_violin()
 
-
+kyorge <-  results_summary %>%
+  filter(raid_boss == "Primal Kyogre")

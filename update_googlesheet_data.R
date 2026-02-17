@@ -16,7 +16,7 @@ moves <- read_sheet(wb,
 
 pokemon_ids <- read_sheet(wb, sheet = "pokemon_ids")
 moves_ids <- read_sheet(wb, sheet = "move_ids")
-
+calendar <- read_sheet(wb, sheet = "Calendar")
 # pokemon_moves %>%
 #   left_join(moves_ids %>% rename(`Move Name` = name)) %>%
 #   left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
@@ -46,6 +46,8 @@ saveRDS(weather, "data/weather.RDS")
 saveRDS(moves_ids, "data/move_ids.RDS")
 saveRDS(pokemon_ids, "data/pokemon_ids.RDS")
 saveRDS(user_pokemon, "data/user_pokemon.RDS")
+saveRDS(calendar, "data/calendar.RDS")
+
 
 base_stats %>%
   filter(grepl("Mega", name)) %>%
