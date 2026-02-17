@@ -1,9 +1,13 @@
 library(tidyverse)
-library(shiny)
+library(doFuture)
+library(future)
+library(progressr)
+library(furrr)
+
+options(progressr.enable = TRUE)
+options(future.globals.maxSize= 891289600)
 
 ## Variables
-
-existing_sims <- readRDS("data/results_summary.RDS")
 
 PARTY_POWER_MULT <- 2
 BOSS_CHARGE_COOLDOWN <- 2.5
@@ -59,53 +63,101 @@ base_stats <- readRDS("data/base_stats.rds") %>%
     type2 = `Type 2`
   )
 
+available_pokemon <- bind_rows(
+  readRDS("data/base_stats.rds") %>%
+    filter(Released == "Yes") %>%
+    mutate(shadow = FALSE) %>%
+    select(
+      pokemon_id = name,
+      name,
+      form = name,
+      base_atk = `Attack Go`,
+      base_def = `Defence Go`,
+      base_sta = `HP Go`,
+      type1 = `Type 1`,
+      type2 = `Type 2`,
+      shadow
+    ),
 
-user_pokemon <- readRDS("data/user_pokemon.rds") %>%
-  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
-  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
-  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
-  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid = ID,
-        pokemon_id = Pokemon,
-        level = `Level`,
-        iv_atk = `Attack IV`,
-        iv_def = `Defence IV`,
-        iv_sta = `HP IV`,
-        shadow,
-        fast_move_id = `Fast Move`,
-        charged_move_id = `Charge1`,
-        Charge2)
+  readRDS("data/base_stats.rds") %>%
+    filter(`Shadow Released` == "Yes") %>%
+    mutate(shadow = TRUE) %>%
+    select(
+      pokemon_id = name,
+      name,
+      form = name,
+      base_atk = `Attack Go`,
+      base_def = `Defence Go`,
+      base_sta = `HP Go`,
+      type1 = `Type 1`,
+      type2 = `Type 2`,
+      shadow
+    )
+) %>%
+  mutate(join = 1) %>%
+  left_join(tibble(join = 1, level = c(20, 25, 30, 40, 50))) %>%
+  left_join(tibble(
+    join = 1,
+    iv_atk = c(0, 15),
+    iv_def = c(0, 15),
+    iv_sta = c(0, 15)
+  )) %>%
+  select(-join)
 
-user_pokemon <- readRDS("data/user_pokemon.rds") %>%
-  filter(`Can Mega Evolve` == "Yes") %>%
-  rename(base_name = Pokemon) %>%
-  inner_join(mega_table) %>%
-  select(-c(`pokedex number`, base_name)) %>%
-  rename(Pokemon = Mega_name) %>%
-  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
-  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
-  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
-  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid = ID,
-        pokemon_id = Pokemon,
-        level = `Level`,
-        iv_atk = `Attack IV`,
-        iv_def = `Defence IV`,
-        iv_sta = `HP IV`,
-        shadow,
-        fast_move_id = `Fast Move`,
-        charged_move_id = `Charge1`,
-      Charge2) %>%
-  bind_rows(user_pokemon)
 
-user_pokemon <- bind_rows(user_pokemon %>%
-  filter(!is.na(Charge2)) %>%
-  select(-charged_move_id) %>%
-  rename(charged_move_id = Charge2),
 
-  user_pokemon %>%
-    # filter(is.na(Charge2)) %>%
-    select(-Charge2))
+#         level = `Level`,
+#         iv_atk = `Attack IV`,
+#         iv_def = `Defence IV`,
+#         iv_sta = `HP IV`,
+
+
+# user_pokemon <- readRDS("data/user_pokemon.rds") %>%
+#   mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
+#   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
+#   mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
+#   mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
+#   select(uuid = ID,
+#         pokemon_id = Pokemon,
+#         level = `Level`,
+#         iv_atk = `Attack IV`,
+#         iv_def = `Defence IV`,
+#         iv_sta = `HP IV`,
+#         shadow,
+#         fast_move_id = `Fast Move`,
+#         charged_move_id = `Charge1`,
+#         Charge2)
+
+# user_pokemon <- readRDS("data/user_pokemon.rds") %>%
+#   filter(`Can Mega Evolve` == "Yes") %>%
+#   rename(base_name = Pokemon) %>%
+#   inner_join(mega_table) %>%
+#   select(-c(`pokedex number`, base_name)) %>%
+#   rename(Pokemon = Mega_name) %>%
+#   mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
+#   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
+#   mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
+#   mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
+#   select(uuid = ID,
+#         pokemon_id = Pokemon,
+#         level = `Level`,
+#         iv_atk = `Attack IV`,
+#         iv_def = `Defence IV`,
+#         iv_sta = `HP IV`,
+#         shadow,
+#         fast_move_id = `Fast Move`,
+#         charged_move_id = `Charge1`,
+#       Charge2) %>%
+#   bind_rows(user_pokemon)
+
+# user_pokemon <- bind_rows(user_pokemon %>%
+#   filter(!is.na(Charge2)) %>%
+#   select(-charged_move_id) %>%
+#   rename(charged_move_id = Charge2),
+
+#   user_pokemon %>%
+#     # filter(is.na(Charge2)) %>%
+#     select(-Charge2))
 
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
@@ -113,6 +165,9 @@ weather_boosts <- readRDS("data/weather.rds")
 
 pokemon_ids <- readRDS("data/pokemon_ids.rds")
 move_ids <- readRDS("data/move_ids.rds")
+
+
+
 
 level_multipliers <- readRDS("data/levels.rds") %>%
   select(level = `Level`, cpm = `CP Multiplier`)
@@ -131,6 +186,22 @@ boss_move_combinations <- inner_join(
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
     select(Pokemon, `Move Name`, legacy) %>%
     filter(legacy == "No") %>%
+    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
+    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
+)
+
+available_move_combinations <- inner_join(
+  pokemon_moves %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
+    select(Pokemon, `Move Name`, legacy) %>%
+    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
+    select(Pokemon, fast_move = `Move Name`),
+
+  pokemon_moves %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
+    select(Pokemon, `Move Name`, legacy) %>%
     inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
     select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
 )
@@ -530,200 +601,63 @@ if (attacker$next_action_time <= boss$next_action_time) {
   )
 }
 
-# attacker <- build_attacker(
-#   pokemon_id = "Mewtwo",
-#   level = 50,
-#   fast_move_id = "Psycho Cut",
-#   charged_move_id = "Hyper Beam"
-# )
-
-# boss <- build_boss(
-#   pokemon_id = "Mewtwo",
-#   tier = 5,
-#   fast_move_id = "Psycho Cut",
-#   charged_move_id = "Hyper Beam"
-# )
-
-# result <- simulate_battle_timeline(attacker, boss, weather = "Sunny", friendship = "best")
-
-# result$dps
-# result$damage_done
-# result
-
-# user_pokemon %>%
-#   slice(1) %>%
-#   build_attacker(
-#     pokemon_id = pokemon_id,
-#     level = level,
-#     fast_move_id = fast_move_id,
-#     charged_move_id = charged_move_id
-#    # shadow = shadow,
-#    # iv_atk = iv_atk,
-#    # iv_def = iv_def,
-#    # iv_sta = iv_sta
-#   )
-
-user_pokemon <- user_pokemon %>%
+long_attacker_list <- available_pokemon %>%
+  inner_join(available_move_combinations %>% rename(pokemon_id = Pokemon)) %>%
+  filter(type1 %in% c("Electric", "Grass", "Water") |
+        type2 %in% c("Electric", "Grass", "Water")) %>%
+  rename(attacker_fast_move = fast_move,
+         attacker_charge_move = charge_move) %>%
+  # slice(1:1000) %>%
   rowwise() %>%
   mutate(
     attacker = list(
       build_attacker(
         pokemon_id      = pokemon_id,
         level           = level,
-        fast_move_id    = fast_move_id,
-        charged_move_id = charged_move_id
+        fast_move_id    = attacker_fast_move,
+        charged_move_id = attacker_charge_move
       )
     )
   ) %>%
   ungroup()
 
-# user_pokemon$attacker[[1]]
 
-# clone <- function(x) unserialize(serialize(x, NULL))
-
-# results <- user_pokemon %>%
-#   mutate(
-#     sim = map(
-#       attacker,
-#       ~ simulate_battle_timeline(
-#           attacker = .x,
-#           boss = clone(boss),
-#           weather = "Sunny",
-#           friendship = "best"
-#         )
-#     )
-#   )
-
-# results$sim[[1]]$dps
-# results$sim[[2]]$damage_done
-
-# results_summary <- results %>%
-#   mutate(
-#     dps = map_dbl(sim, "dps"),
-#     damage = map_dbl(sim, "damage_done"),
-#     time = map_dbl(sim, "time")
-#   ) %>%
-#   select(-sim)
 
 
 bosses <- boss_move_combinations %>%
   inner_join(raid_bosses) %>%
+  filter(Pokemon %in% c("Primal Kyogre", "Primal Groudon")) %>%
+    rename(boss_fast_move = fast_move,
+         boss_charge_move = charge_move) %>%
   rowwise() %>%
   mutate(boss = list(
     build_boss(
       pokemon_id = Pokemon,
       tier = tier,
-      fast_move_id = fast_move,
-      charged_move_id = charge_move
+      fast_move_id = boss_fast_move,
+      charged_move_id = boss_charge_move
   ))) %>%
   ungroup
 
-# sim_grid <- tidyr::crossing(
-#   user_pokemon,
-#   bosses
-# )
 
-# clone <- function(x) unserialize(serialize(x, NULL))
-
-# results <- sim_grid %>%
-#   # slice(1:30) %>%
-#   mutate(
-#     sim = map2(
-#       attacker,
-#       boss,
-#       ~ simulate_battle_timeline(
-#           attacker   = .x,
-#           boss       = clone(.y),
-#           weather    = "Sunny",
-#           friendship = "best"
-#         )
-#     )
-#   )
-
-# results_summary <- results %>%
-#   mutate(
-#     dps    = map_dbl(sim, "dps"),
-#     damage = map_dbl(sim, "damage_done"),
-#     time   = map_dbl(sim, "time")
-#   ) %>%
-#   select(
-#     pokemon_id,
-#     level,
-#     fast_move_id,
-#     charged_move_id,
-#     boss_fast_move_id = fast_move,
-#     boss_charged_move_id = charge_move,
-#     dps,
-#     damage,
-#     time
-#   )
-
-weathers <- weather_boosts %>% select(weather) %>% distinct()
+# weathers <- weather_boosts %>% select(weather) %>% distinct()
 
 sim_grid <- tidyr::crossing(
-  user_pokemon,
-  bosses,
-  weathers)
+  long_attacker_list,
+  bosses)
 
-# test <- sim_grid %>%
-#   # slice(1:30) %>%
-#   mutate(
-#     sim = map2(
-#       attacker,
-#       boss,
-#       ~ simulate_battle_timeline(
-#           attacker   = .x,
-#           boss       = .y,
-#           weather    = weather,
-#           friendship = "best"
-#         )
-#     )
-#   )
-
-# n_workers <- 10
-# Setup parallelization
-# future::plan(future::multisession, workers=n_workers)
+rm(available_move_combinations, available_pokemon,
+   boss_move_combinations, long_attacker_list)
 
 
 
-# library(foreach)
-# library(doParallel)
-# library(doSNOW)
-# library(progress)
 
-# n_cores <- detectCores()
-# n_cores
 
-# cluster <- makeCluster(n_cores - 1)
-# registerDoParallel(cluster)
-
-# cl <- makeCluster(parallel::detectCores() - 2)
-# registerDoSNOW(cl)
-
-# pb <- txtProgressBar(max = nrow(sim_grid), style = 3)
-
-# pb <- progress_bar$new(
-#   format = "[:bar] :elapsed | eta: :eta",
-#   total = nrow(sim_grid),    # 100 
-#   width = 60)
-
-# progress <- function(n) setTxtProgressBar(pb, n)
-# opts <- list(progress = progress)
-
-library(doFuture)
-library(future)
-library(progressr)
-library(furrr)
 
 registerDoFuture()
 plan(multisession, workers = 10)  # or however many
 
 print(Sys.time())
-
-# plan(multisession, workers = 4)
-
-options(progressr.enable = TRUE)
-options(future.globals.maxSize= 891289600)
 
 with_progress({
 
@@ -743,7 +677,7 @@ with_progress({
           ~ simulate_battle_timeline(
               attacker   = .x,
               boss       = .y,
-              weather    = weather,
+              weather    = "Extreme",
               friendship = "best"
             )
         ))
@@ -754,130 +688,29 @@ with_progress({
 })
 
 
-# library(progressr)
-
-# # handlers("progress")
-
-# handlers(handler_progress(
-#   format = ":bar :percent | elapsed: :elapsed | eta: :eta"
-# ))
-
-# with_progress({
-#   p <- progressor(steps = nrow(sim_grid))
-
-# sim_list <- foreach(
-# i = seq_len(nrow(sim_grid)),
-#   .packages = c("dplyr", "purrr"),
-#   .combine = "rbind"
-#   # .options.snow = opts
-# ) %dopar% {
-  
-#   p()
-
-#     sim_grid %>%
-#     slice(i) %>%
-#     mutate(sim = map2(
-#       attacker,
-#       boss,
-#       ~ simulate_battle_timeline(
-#           attacker   = .x,
-#           boss       = .y,
-#           weather    = weather,
-#           friendship = "best"
-#         )
-#     ))
-# }
-# })
-
-# # close(pb)
-# stopCluster(cl)
-
-# sim_grid %>%
-#   mutate(sim = map2(attacker,
-
-#     simulate_battle_timeline(
-#       attacker = attacker, 
-#       boss = boss,
-#       weather = weather,
-#       max_time = 300,
-#       friendship = "best")))
-
-# sim_list <- foreach(
-#   i = seq_len(nrow(sim_grid)),
-#   .packages = c("dplyr", "purrr"),
-#   .combine = "rbind"
-# ) %dopar% {
-#   sim_grid %>%
-#     slice(i) %>%
-
-#   simulate_battle_timeline(
-#     attacker   = clone(sim_grid$attacker[[i]]),
-#     boss       = clone(sim_grid$boss[[i]]),
-#     weather    = sim_grid$weather[[i]],
-#     friendship = "best"
-#   )
-# }
-
-# results <- sim_grid %>%
-#   mutate(sim = sim_list)
-
-
-# results <- sim_grid %>%
-#   mutate(
-#     sim = pmap(
-#       list(attacker, boss, weather),
-#       ~ simulate_battle_timeline(
-#           attacker   = ..1,
-#           boss       = clone(..2),
-#           weather    = ..3,
-#           friendship = "best"
-#         )
-#     )
-#   )
-
 results_summary <- sim_list %>%
   mutate(
     dps    = map_dbl(sim, "dps"),
     damage = map_dbl(sim, "damage_done"),
-    time   = map_dbl(sim, "time")
+    time   = map_dbl(sim, "time"),
+    weather = "Extreme",
+    uuid = row_number(),
+    pokemon_id = if_else(shadow == TRUE, paste0("Shadow ", form), form),
   ) %>%
   select(
     uuid,
     pokemon_id,
     raid_boss = Pokemon,
     level,
-    fast_move_id,
-    charged_move_id,
-    boss_fast_move_id = fast_move,
-    boss_charged_move_id = charge_move,
+    fast_move_id = attacker_fast_move,
+    charged_move_id = attacker_charge_move,
+    boss_fast_move_id = boss_fast_move,
+    boss_charged_move_id = boss_charge_move,
     dps,
     damage,
     time,
     weather,
     tier
-  ) %>%
-    bind_rows(existing_sims)
+  )
 
-saveRDS(results_summary, "data/results_summary.RDS")
-
-# friendships <- tibble(friendship = c("none", "good", "great", "ultra", "best"))
-
-# sim_grid <- tidyr::crossing(
-#   user_pokemon,
-#   bosses,
-#   weathers,
-#   friendships
-# )
-
-# results <- sim_grid %>%
-#   mutate(
-#     sim = pmap(
-#       list(attacker, boss, weather, friendship),
-#       ~ simulate_battle_timeline(
-#           attacker   = ..1,
-#           boss       = clone(..2),
-#           weather    = ..3,
-#           friendship = ..4
-#         )
-#     )
-#   )
+saveRDS(results_summary, "data/hypotectical_matchups.RDS")

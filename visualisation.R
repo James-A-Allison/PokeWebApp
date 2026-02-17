@@ -193,3 +193,12 @@ shinyApp(ui, server)
 
 kyorge <-  results_summary %>%
   filter(raid_boss == "Primal Kyogre")
+
+      results_summary %>%
+        filter(grepl("Primal", raid_boss)) %>%
+        group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
+        mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
+        group_by(uuid, pokemon_id, level, fast_move_id, charged_move_id) %>%
+        summarise(scenarios_top_6 = length(dmg_rank[dmg_rank <= 6]),
+                  scenarios_top_12 = length(dmg_rank[dmg_rank <= 12])) %>%
+        arrange(desc(scenarios_top_12))
