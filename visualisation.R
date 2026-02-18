@@ -8,6 +8,7 @@ upcoming_raids <- readRDS("data/calendar.RDS") %>%
   filter(To >= Sys.Date()) %>%
   select(raid_boss = `Raid Boss`,
         tier = Tier)
+hypotechical_matchups <- readRDS("data/hypotectical_matchups.RDS")
 
 ui <- dashboardPage(
   dashboardHeader(title = "Pokemon Go Strategic Team Builder"),
@@ -202,3 +203,25 @@ kyorge <-  results_summary %>%
         summarise(scenarios_top_6 = length(dmg_rank[dmg_rank <= 6]),
                   scenarios_top_12 = length(dmg_rank[dmg_rank <= 12])) %>%
         arrange(desc(scenarios_top_12))
+
+hypotechical_matchups %>%
+  filter(raid_boss == "Primal Groudon") %>%
+  filter(pokemon_id %in% results_summary$pokemon_id) %>%
+  filter(level == 30) %>%
+  group_by(pokemon_id, raid_boss, level, fast_move_id, charged_move_id) %>%
+  summarise(damage = sum(damage),
+            time = sum(time)) %>%
+  mutate(dps = damage / time) %>%
+  arrange(desc(dps)) %>%
+  group_by(pokemon_id, raid_boss) %>%
+  top_n(n= 1, wt = dps)
+
+results_summary %>%
+  filter(raid_boss == "Primal Groudon") %>%
+  group_by(pokemon_id, raid_boss, level, fast_move_id, charged_move_id) %>%
+  summarise(damage = sum(damage),
+            time = sum(time)) %>%
+  mutate(dps = damage / time) %>%
+  arrange(desc(dps))  %>%
+  group_by(pokemon_id, raid_boss) %>%
+  top_n(n= 1, wt = dps)
