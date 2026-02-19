@@ -225,3 +225,13 @@ results_summary %>%
   arrange(desc(dps))  %>%
   group_by(pokemon_id, raid_boss) %>%
   top_n(n= 1, wt = dps)
+
+results_summary %>%
+  filter(raid_boss == "Primal Kyogre") %>%
+  group_by(pokemon_id, raid_boss, level, fast_move_id, charged_move_id) %>%
+  summarise(damage = mean(damage),
+            time = mean(time)) %>%
+  mutate(dps = damage / time) %>%
+  arrange(desc(dps))  %>%
+  group_by(pokemon_id, raid_boss) %>%
+  top_n(n= 1, wt = dps)

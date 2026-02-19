@@ -50,9 +50,9 @@ saveRDS(calendar, "data/calendar.RDS")
 
 
 base_stats %>%
-  filter(grepl("Mega", name)) %>%
+  filter(grepl("Mega |Primal", name)) %>%
   select(Mega_name = name, `pokedex number`) %>%
   inner_join(
-    base_stats %>% filter(!grepl("Mega", name)) %>% select(base_name = name, `pokedex number`)
+    base_stats %>% filter(!grepl("Mega |Primal", name)) %>% select(base_name = name, `pokedex number`)
   ) %>%
   saveRDS("data/mega_table.RDS")
