@@ -182,8 +182,8 @@ shinyApp(ui, server)
         group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
         mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
         filter(dmg_rank <= 6) %>%
-        summarise(damage = sum(damage),
-                  time = sum(time)) %>%
+        summarise(damage = mean(damage),
+                  time = mean(time)) %>%
         mutate(dps = damage/time) %>%
         group_by(raid_boss) %>%
         mutate(avg_dps = mean(dps)) %>%
@@ -235,3 +235,12 @@ results_summary %>%
   arrange(desc(dps))  %>%
   group_by(pokemon_id, raid_boss) %>%
   top_n(n= 1, wt = dps)
+
+results_summary %>%
+  inner_join(upcoming_raids) %>%
+  group_by(raid_boss, boss_fast_move_id, boss_charged_move_id, weather) %>%
+  mutate(dmg_rank = rank(desc(damage), ties.method = "min")) %>%
+  filter(dmg_rank <= 6) %>%
+  summarise(damage = mean(damage),
+            time = mean(time)) %>%
+  mutate(dps = damage/time)
