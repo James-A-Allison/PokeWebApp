@@ -18,8 +18,11 @@ base_stats <- readRDS("data/base_stats.rds") %>%
     base_def = `Defence Go`,
     base_sta = `HP Go`,
     type1 = `Type 1`,
-    type2 = `Type 2`
+    type2 = `Type 2`,
+    class = Class
   )
+
+useful_base_attackers <- readRDS("data/useful_base_attackers.rds")
 
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
@@ -166,6 +169,8 @@ long_attacker_list <- available_pokemon %>%
     )
   ) %>%
   ungroup()
+
+
 
 sim_grid <- tidyr::crossing(
   long_attacker_list,

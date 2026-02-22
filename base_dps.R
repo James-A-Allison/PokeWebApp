@@ -88,4 +88,4 @@ for (i in 1:length(unique_types)) {
 
 useful_base_attackers <- base_attacker_candidates %>% select(Pokemon) %>% distinct()
 
-
+saveRDS(useful_base_attackers, "data/useful_base_attackers.RDS")
