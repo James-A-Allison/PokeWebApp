@@ -1,10 +1,12 @@
 library(tidyverse)
+library(shinydashboard)
+library(shiny)
 library(doFuture)
 library(future)
 library(progressr)
 library(furrr)
-# devtools::install("C:/Users/james/pokemonGoSim")
 library(pokemonGoSim)
+library(DT)
 
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
@@ -12,6 +14,15 @@ moves <- readRDS("data/moves.rds")
 
 pokemon_ids <- readRDS("data/pokemon_ids.rds")
 move_ids <- readRDS("data/move_ids.rds")
+
+results_summary <- readRDS("data/results_summary.RDS")
+upcoming_raids <- readRDS("data/calendar.RDS") %>%
+  filter(To >= Sys.Date()) %>%
+  select(raid_boss = `Raid Boss`, tier = Tier)
+
+raid_boss_tier <- c(
+  results_summary %>% select(tier) %>% distinct %>% arrange(tier) %>% pull
+)
 
 dust_table <-readRDS("data/levels.RDS") %>%
   select(level = Level,
@@ -173,13 +184,65 @@ max_level_with_dust_fast <- function(current_level,
   ))
 }
 
-leveled_up_pokemon <- user_pokemon %>%
+ui <- dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody(
+    selectInput("raid_tier", "Select a raid tier: ", raid_boss_tier),
+    selectInput("raid_boss", "Select a raid boss: ", choices = NULL),
+    radioButtons(
+      "max_level",
+      "What is the maximum level to power-up to?",
+      choices = c(20,25,30,35,40,45,50),
+      selected = 50
+    ),
+    numericInput("max_dust", "How much stardust are you prepared to use?", value = 50000, min = 100, max = 700000),
+    actionButton("run_scenario", "Run calculations"),
+    checkboxInput("legendaries", "Include Legendary Pokemon?", value = TRUE),
+    checkboxInput("myth", "Include Mythical Pokemon?", value = TRUE),
+    dataTableOutput("normal_output"),
+    dataTableOutput("mega_output"),
+
+  )
+)
+
+server <- function(input, output, session) {
+  data <- reactiveValues(
+    raid_boss_list = bind_rows(
+      upcoming_raids %>%
+        arrange(desc(tier), raid_boss) %>%
+        distinct() %>%
+        mutate(tier = as.character(tier)),
+      tibble(tier = as.character(1:6), raid_boss = "--"),
+      results_summary %>%
+        select(tier, raid_boss) %>%
+        distinct() %>%
+        arrange(desc(tier), raid_boss) %>%
+        mutate(tier = as.character(tier))
+    )
+  )
+
+  observeEvent(input$raid_tier, {
+    req(input$raid_tier, data$raid_boss_list)
+    # browser()
+    boss_tiers <- data$raid_boss_list %>%
+      filter(tier == input$raid_tier)
+
+    updateSelectInput(
+      session,
+      "raid_boss",
+      choices = boss_tiers$raid_boss
+    )
+  })
+
+  results <- eventReactive(input$run_scenario, {
+    leveled_up_pokemon <- user_pokemon %>%
   rowwise() %>%
   mutate(sim_level_up = list(max_level_with_dust_fast(
     current_level = level,
-    dust_limit = 100000,
+    dust_limit = input$max_dust,
     levels_tbl = dust_table,
-    max_level = 40,
+    max_level = input$max_level,
     dust_col = dust_status
   ))) %>%  tidyr::unnest_wider(sim_level_up) %>%
   filter(levels_gained > 0) %>%
@@ -200,7 +263,7 @@ leveled_up_pokemon <- user_pokemon %>%
 
 bosses <- boss_move_combinations %>%
   inner_join(raid_bosses) %>%
-  filter(Pokemon == "Primal Groudon") %>%
+  filter(Pokemon == input$raid_boss) %>%
   rowwise() %>%
   mutate(boss = list(
     build_boss(
@@ -277,7 +340,7 @@ sim_list <- sim_list %>%
   )
 
 existing_sims <- readRDS("data/results_summary.RDS") %>%
-  filter(raid_boss == "Primal Groudon")
+  filter(raid_boss == input$raid_boss)
 
 leveled_up_mega <- leveled_up_pokemon %>% filter(grepl("Mega |Primal", pokemon_id))
 leveled_up_normal <- leveled_up_pokemon %>% filter(!grepl("Mega |Primal", pokemon_id))
@@ -377,4 +440,20 @@ normal_output <- normal_loop %>%
   left_join(baseline_normal_dps) %>%
   mutate(dps_gain = leveled_up_avg_dps - avg_dps) %>%
   arrange(desc(dps_gain))
+  
+  list(normal_output = normal_output,
+    mega_output = mega_output)
+  
+  })
 
+  output$normal_output <- renderDT({
+    results()$normal_output
+  })
+  
+  output$table2 <- renderDT({
+    results()$mega_output
+  })
+
+}
+
+shinyApp(ui, server)
