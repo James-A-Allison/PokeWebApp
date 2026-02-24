@@ -34,14 +34,14 @@ available_move_combinations <- inner_join(
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
     select(Pokemon, `Move Name`, legacy) %>%
     inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
-    select(Pokemon, fast_move = `Move Name`),
+    select(Pokemon, fast_move = `Move Name`, elite_fast_tm = legacy),
 
   pokemon_moves %>%
     left_join(move_ids %>% rename(`Move Name` = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
     select(Pokemon, `Move Name`, legacy) %>%
     inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
-    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
+    select(Pokemon, charge_move = `Move Name`, elite_charged_tm = legacy), relationship = "many-to-many" 
 )
 
 base_table <- available_move_combinations %>%
@@ -89,3 +89,33 @@ for (i in 1:length(unique_types)) {
 useful_base_attackers <- base_attacker_candidates %>% select(Pokemon) %>% distinct()
 
 saveRDS(useful_base_attackers, "data/useful_base_attackers.RDS")
+
+base_dps <- base_table %>%
+  filter(elite_charged_tm == "No", elite_fast_tm == "No") %>%
+  group_by(Pokemon) %>%
+  top_n(n = 1, wt = dps) %>%
+  select(Pokemon, max_base_dps = dps)
+
+elite_fast_tm_dps <- base_table %>%
+  filter(elite_fast_tm == "Yes") %>%
+  group_by(Pokemon) %>%
+  top_n(n = 1, wt = dps) %>%
+  select(Pokemon, fast_move, charge_move, elite_fast_tm_dps = dps) %>%
+  left_join(base_dps) %>%
+  mutate(dps_percent_increase = elite_fast_tm_dps / max_base_dps,
+          dps_abs_increase = elite_fast_tm_dps / max_base_dps) %>%
+  arrange(desc(dps_percent_increase))
+
+elite_charged_tm_dps <- base_table %>%
+  filter(elite_charged_tm == "Yes") %>%
+  group_by(Pokemon) %>%
+  top_n(n = 1, wt = dps) %>%
+  select(Pokemon, fast_move, charge_move, elite_charged_tm_dps = dps) %>%
+  left_join(base_dps) %>%
+  mutate(dps_percent_increase = elite_charged_tm_dps / max_base_dps,
+        dps_abs_increase = elite_charged_tm_dps - max_base_dps) %>%
+  arrange(desc(dps_percent_increase))
+
+saveRDS(elite_fast_tm_dps, "data/elite_fast_tm_dps.RDS")
+saveRDS(elite_charged_tm_dps, "data/elite_charged_tm_dps.RDS")
+
