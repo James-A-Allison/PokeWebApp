@@ -152,7 +152,6 @@ max_level_with_dust_fast <- function(current_level,
                                      dust_col = "normal_dust"
                                     ,max_level = 50) {
   dust_col = tolower(dust_col)
-  # browser()
   # Pull chosen dust column once (fast)
   dusts_all <- levels_tbl[[dust_col]]
   levels_all <- levels_tbl$level
@@ -231,7 +230,6 @@ server <- function(input, output, session) {
 
   observeEvent(input$raid_tier, {
     req(input$raid_tier, data$raid_boss_list)
-    # browser()
     boss_tiers <- data$raid_boss_list %>%
       filter(tier == input$raid_tier)
 
@@ -242,35 +240,36 @@ server <- function(input, output, session) {
     )
   })
 
-  results <- reactiveVal(NULL)
+  results <- reactiveValues(normal_output = tibble(),
+                            mega_output = tibble())
 
   observeEvent(input$run_scenario, {
     # shinyjs::disable("run_sim")
     showPageSpinner()
     leveled_up_pokemon <- user_pokemon %>%
-  rowwise() %>%
-  mutate(sim_level_up = list(max_level_with_dust_fast(
-    current_level = level,
-    dust_limit = input$max_dust,
-    levels_tbl = dust_table,
-    max_level = input$max_level,
-    dust_col = dust_status
-  ))) %>%  tidyr::unnest_wider(sim_level_up) %>%
-  filter(levels_gained > 0) %>%
-  rowwise() %>%
-  mutate(
-    attacker = list(
-      build_attacker(
-        pokemon_id      = pokemon_id,
-        level           = final_level,
-        fast_move_id    = fast_move_id,
-        charged_move_id = charged_move_id,
-        shadow = shadow,
-        base_stats = base_stats
-      )
-    )
-  ) %>%
-  ungroup()
+        rowwise() %>%
+        mutate(sim_level_up = list(max_level_with_dust_fast(
+          current_level = level,
+          dust_limit = input$max_dust,
+          levels_tbl = dust_table,
+          max_level = input$max_level,
+          dust_col = dust_status
+        ))) %>%  tidyr::unnest_wider(sim_level_up) %>%
+        filter(levels_gained > 0) %>%
+        rowwise() %>%
+        mutate(
+          attacker = list(
+            build_attacker(
+              pokemon_id      = pokemon_id,
+              level           = final_level,
+              fast_move_id    = fast_move_id,
+              charged_move_id = charged_move_id,
+              shadow = shadow,
+              base_stats = base_stats
+            )
+          )
+        ) %>%
+        ungroup()
 
 bosses <- boss_move_combinations %>%
   inner_join(raid_bosses) %>%
@@ -321,6 +320,7 @@ with_progress({
     list_rbind()
 
 })
+
 
 sim_list <- sim_list %>%
   mutate(
@@ -451,18 +451,24 @@ normal_output <- normal_loop %>%
   mutate(dps_gain = leveled_up_avg_dps - avg_dps) %>%
   arrange(desc(dps_gain))
   
-    hidePageSpinner()
-  results(list(normal_output = normal_output,
-    mega_output = mega_output))
+  hidePageSpinner()
+
+  results$normal_output <- normal_output %>% select(pokemon_id, dust_status, level, 
+    final_level, fast_move_id, charged_move_id, dps_gain, leveled_up_avg_dps,
+     dps_rank, levels_gained, total_dust_used)
+  results$mega_output <- mega_output %>% select(pokemon_id, dust_status, level, 
+    final_level, fast_move_id, charged_move_id, dps_gain, leveled_up_avg_dps,
+     dps_rank, levels_gained, total_dust_used)
+
   # shinyjs::enable("run_sim")
   })
 
   output$normal_output <- renderDT({
-    results()$normal_output
+    req(results$normal_output)
   })
   
-  output$table2 <- renderDT({
-    results()$mega_output
+  output$mega_output <- renderDT({
+    req(results$mega_output)
   })
 
 }
