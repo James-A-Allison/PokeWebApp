@@ -7,6 +7,13 @@ library(progressr)
 library(furrr)
 library(pokemonGoSim)
 library(DT)
+library(shinycssloaders)
+
+handlers(global = TRUE)
+handlers("shiny")
+
+registerDoFuture()
+plan(multisession, workers = 10)  # or however many
 
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
@@ -235,7 +242,11 @@ server <- function(input, output, session) {
     )
   })
 
-  results <- eventReactive(input$run_scenario, {
+  results <- reactiveVal(NULL)
+
+  observeEvent(input$run_scenario, {
+    # shinyjs::disable("run_sim")
+    showPageSpinner()
     leveled_up_pokemon <- user_pokemon %>%
   rowwise() %>%
   mutate(sim_level_up = list(max_level_with_dust_fast(
@@ -279,8 +290,7 @@ sim_grid <- tidyr::crossing(
   bosses)  %>%
   mutate(weather = "Extreme")
 
-registerDoFuture()
-plan(multisession, workers = 10)  # or however many
+
 
 print(Sys.time())
 
@@ -441,9 +451,10 @@ normal_output <- normal_loop %>%
   mutate(dps_gain = leveled_up_avg_dps - avg_dps) %>%
   arrange(desc(dps_gain))
   
-  list(normal_output = normal_output,
-    mega_output = mega_output)
-  
+    hidePageSpinner()
+  results(list(normal_output = normal_output,
+    mega_output = mega_output))
+  # shinyjs::enable("run_sim")
   })
 
   output$normal_output <- renderDT({
