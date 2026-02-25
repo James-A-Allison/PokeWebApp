@@ -159,12 +159,12 @@ available_pokemon <- bind_rows(
 #     # filter(is.na(Charge2)) %>%
 #     select(-Charge2))
 
-pokemon_moves <- readRDS("data/pokemon_moves.rds")
-moves <- readRDS("data/moves.rds")
+# pokemon_moves <- readRDS("data/pokemon_moves.rds")
+# moves <- readRDS("data/moves.rds")
 weather_boosts <- readRDS("data/weather.rds")
 
-pokemon_ids <- readRDS("data/pokemon_ids.rds")
-move_ids <- readRDS("data/move_ids.rds")
+# pokemon_ids <- readRDS("data/pokemon_ids.rds")
+# move_ids <- readRDS("data/move_ids.rds")
 
 
 
@@ -172,57 +172,11 @@ move_ids <- readRDS("data/move_ids.rds")
 level_multipliers <- readRDS("data/levels.rds") %>%
   select(level = `Level`, cpm = `CP Multiplier`)
 
-boss_move_combinations <- inner_join(
-  pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
-    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    filter(legacy == "No") %>%
-    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
-    select(Pokemon, fast_move = `Move Name`),
+boss_move_combinations <- readRDS("data/boss_move_combinations.RDS")
 
-  pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
-    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    filter(legacy == "No") %>%
-    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
-    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
-)
+available_move_combinations <- readRDS("data/user_move_combinations.RDS")
 
-available_move_combinations <- inner_join(
-  pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
-    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
-    select(Pokemon, fast_move = `Move Name`),
-
-  pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
-    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
-    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
-)
-
-moves <- moves %>%
-      mutate(
-        energy_delta = (`Energy Gain` * 1) + (`Energy Cost` * -1),
-        duration_ms = Duration * 1000,
-        category = case_when(
-          `Move Type` == "Fast" ~ "fast_move",
-          `Move Type` == "Charge" ~ "charge_move"
-        )
-      ) %>%
-  select(
-        move_id = `Move Name`,
-        name = `Move Name`,
-        category,
-        power = Power,
-        energy_delta,
-        duration_ms,
-        type = Category)
+moves <- readRDS("data/moves_formatted.RDS")
 
 ## Functions
 

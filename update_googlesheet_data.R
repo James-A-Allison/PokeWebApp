@@ -56,3 +56,4 @@ base_stats %>%
     base_stats %>% filter(!grepl("Mega |Primal", name)) %>% select(base_name = name, `pokedex number`)
   ) %>%
   saveRDS("data/mega_table.RDS")
+
