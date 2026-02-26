@@ -5,6 +5,7 @@ library(googlesheets4)
 library(shiny)
 library(pokemonGoSim)
 library(DT)
+library(rhandsontable)
 
 base_stats <- readRDS("data/base_stats.rds")
 levels <- readRDS("data/levels.rds")
@@ -62,13 +63,14 @@ ui <- fluidPage(
 
     mainPanel(
 
-      dataTableOutput("user_pokemon")
+      rHandsontableOutput("user_pokemon")
     )
   )
 )
 
 server <- function(input, output, session) {
 
+  user_table <- reactiveVal(readRDS("data/user_pokemon.RDS"))
   
 observeEvent(input$pokemon, {
   req(input$pokemon)
@@ -135,8 +137,9 @@ observeEvent(input$pokemon, {
     }
   })
 
-  output$user_pokemon <- renderDataTable({
-      user_pokemon %>%
+  output$user_pokemon <- renderRHandsontable({
+      rhandsontable(user_table() %>%
+      as_tibble() %>%
       rowwise() %>%
       mutate(CP = CP_Formula(pokemon = Pokemon, 
         base_stats = base_stats,
@@ -145,8 +148,26 @@ observeEvent(input$pokemon, {
         Attack_IV = `Attack IV`,
         Defence_IV = `Defence IV`,
         HP_IV = `HP IV`),
-      .after = `Pokemon`)
-  },selection = "single", rownames = FALSE)
+      .after = `Pokemon`)) %>%
+      # Fixed columns
+      hot_col("Pokemon", readOnly = TRUE) %>%
+      hot_col("CP", readOnly = TRUE) %>%
+
+      # Numeric editable
+      hot_col("Level", type = "numeric", min = 1, max = 50) %>%
+      hot_col("Attack IV", type = "numeric", min = 0, max = 15) %>%
+      hot_col("Defence IV", type = "numeric", min = 0, max = 15) %>%
+      hot_col("HP IV", type = "numeric", min = 0, max = 15) %>%
+
+      # Dropdowns
+      hot_col("Dust Status",
+              type = "dropdown",
+              source = c("Normal", "Lucky", "Shadow", "Purified")) %>%
+      
+      hot_col("Can Mega Evolve",
+              type = "dropdown",
+              source = c("Yes", "No"))
+  })
 }
 
 shinyApp(ui, server)
