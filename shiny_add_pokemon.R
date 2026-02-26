@@ -5,24 +5,11 @@ library(googlesheets4)
 library(shiny)
 library(pokemonGoSim)
 library(DT)
-library(rhandsontable)
-library(jsonlite)
-library(htmlwidgets)
 
 base_stats <- readRDS("data/base_stats.rds")
 levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
-
-fast_moves <- user_move_combinations %>%
-  distinct(fast_move) %>%
-  arrange() %>%
-  pull()
-
-charge_moves <- user_move_combinations %>%
-  distinct(charge_move) %>%
-  arrange() %>%
-  pull() %>% c("", .)
 
 ui <- fluidPage(
   titlePanel("Pokémon GO CP / IV Finder"),
@@ -67,8 +54,8 @@ ui <- fluidPage(
     ),
 
     mainPanel(
-    actionButton("modify", "Modify existing pokemon", class = "btn-primary"),
-      rHandsontableOutput("user_pokemon")
+
+      dataTableOutput("user_pokemon")
     )
   )
 )
@@ -144,9 +131,8 @@ observeEvent(input$pokemon, {
     }
   })
 
-  output$user_pokemon <- renderRHandsontable({
-      rhandsontable(user_table() %>%
-      as_tibble() %>%
+  output$user_pokemon <- renderDataTable({
+      user_pokemon %>%
       rowwise() %>%
       mutate(CP = CP_Formula(pokemon = Pokemon, 
         base_stats = base_stats,
@@ -155,36 +141,8 @@ observeEvent(input$pokemon, {
         Attack_IV = `Attack IV`,
         Defence_IV = `Defence IV`,
         HP_IV = `HP IV`),
-      .after = `Pokemon`)) %>%
-      # Fixed columns
-      hot_col("Pokemon", readOnly = TRUE) %>%
-      hot_col("CP", readOnly = TRUE) %>%
-
-      # Numeric editable
-      hot_col("Level", type = "numeric", min = 1, max = 50) %>%
-      hot_col("Attack IV", type = "numeric", min = 0, max = 15) %>%
-      hot_col("Defence IV", type = "numeric", min = 0, max = 15) %>%
-      hot_col("HP IV", type = "numeric", min = 0, max = 15) %>%
-
-      # Dropdowns
-      hot_col("Dust Status",
-              type = "dropdown",
-              source = c("Normal", "Lucky", "Shadow", "Purified")) %>%
-      
-      hot_col("Can Mega Evolve",
-              type = "dropdown",
-              source = c("Yes", "No")) %>%
-        
-      hot_col("Fast Move",
-              type = "dropdown", 
-            source = fast_moves) %>%
-        
-      hot_col("Charge1",
-        type = "dropdown", source = charge_moves) %>%
-        
-      hot_col("Charge2",
-        type = "dropdown", source = charge_moves) 
-  })
+      .after = `Pokemon`)
+  },selection = "single", rownames = FALSE)
 }
 
 shinyApp(ui, server)
