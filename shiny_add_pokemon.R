@@ -4,11 +4,22 @@ library(tidyverse)
 library(googlesheets4)
 library(shiny)
 library(pokemonGoSim)
+library(DT)
 
 base_stats <- readRDS("data/base_stats.rds")
 levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
+
+user_pokemon %>%
+  rowwise() %>%
+  mutate(CP = CP_Formula(pokemon = Pokemon, 
+      base_stats = base_stats,
+    levels = levels,
+    level = Level,
+    Attack_IV = `Attack IV`,
+    Defence_IV = `Defence IV`,
+  HP_IV = `HP IV`))
 
 ui <- fluidPage(
   titlePanel("Pokémon GO CP / IV Finder"),
@@ -51,7 +62,7 @@ ui <- fluidPage(
 
     mainPanel(
 
-      textOutput("user_pokemon")
+      dataTableOutput("user_pokemon")
     )
   )
 )
@@ -123,6 +134,19 @@ observeEvent(input$pokemon, {
       paste(nrow(df), "possible IV combinations")
     }
   })
+
+  output$user_pokemon <- renderDataTable({
+      user_pokemon %>%
+      rowwise() %>%
+      mutate(CP = CP_Formula(pokemon = Pokemon, 
+        base_stats = base_stats,
+        levels = levels,
+        level = Level,
+        Attack_IV = `Attack IV`,
+        Defence_IV = `Defence IV`,
+        HP_IV = `HP IV`),
+      .after = `Pokemon`)
+  },selection = "single", rownames = FALSE)
 }
 
 shinyApp(ui, server)
