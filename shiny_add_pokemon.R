@@ -11,6 +11,19 @@ levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
 
+      user_pokemon %>%
+      inner_join(levels %>% select(Level, `CP Multiplier`)) %>%
+      rowwise() %>%
+      mutate(CP = CP_Formula(pokemon = Pokemon, 
+        base_stats = base_stats,
+        levels = levels,
+        level = Level,
+        CP_Multiplier = `CP Multiplier`,
+        Attack_IV = `Attack IV`,
+        Defence_IV = `Defence IV`,
+        HP_IV = `HP IV`),
+      .after = `Pokemon`)
+
 ui <- fluidPage(
   titlePanel("Pokémon GO CP / IV Finder"),
 
@@ -47,14 +60,13 @@ ui <- fluidPage(
       actionButton("run", "Find IVs", class = "btn-primary"),
 
       h4("Possible matches"),
-      tableOutput("results"),
 
-      actionButton("add_new", "Add Pokemon", class = "btn-primary"),
 
     ),
 
     mainPanel(
-
+      dataTableOutput("iv_results"),
+      actionButton("add_new", "Add Pokemon", class = "btn-primary"),
       dataTableOutput("user_pokemon")
     )
   )
@@ -83,7 +95,7 @@ observeEvent(input$pokemon, {
                     choices = c("", charge_move_options))
 })
   
-  results <- eventReactive(input$run, {
+  iv_results_df <- eventReactive(input$run, {
 
     CP_Finder(
       pokemon = input$pokemon,
@@ -100,9 +112,9 @@ observeEvent(input$pokemon, {
 
   })
 
-  output$results <- renderTable({
-    results()
-  })
+  output$iv_results <- renderDataTable({
+    iv_results_df()}, selection = "single", rownames = FALSE
+  )
 
   output$dust_ui <- renderUI({
 
@@ -132,17 +144,51 @@ observeEvent(input$pokemon, {
   })
 
   output$user_pokemon <- renderDataTable({
-      user_pokemon %>%
+      user_table() %>%
+      inner_join(levels %>% select(Level, `CP Multiplier`)) %>%
       rowwise() %>%
       mutate(CP = CP_Formula(pokemon = Pokemon, 
         base_stats = base_stats,
         levels = levels,
         level = Level,
+        CP_Multiplier = `CP Multiplier`,
         Attack_IV = `Attack IV`,
         Defence_IV = `Defence IV`,
         HP_IV = `HP IV`),
-      .after = `Pokemon`)
+      .after = `Pokemon`) %>%
+        select(-c(ID, `CP Multiplier`))
   },selection = "single", rownames = FALSE)
+
+  observeEvent(input$add_new, {
+    req(input$iv_results_rows_selected)
+    browser()
+    selected_index <- input$iv_results_rows_selected
+
+    new_id <- user_table() %>% select(ID) %>% pull() %>% max() + 1
+
+    new_row <- tibble(
+        ID = new_id,
+        Pokemon = input$pokemon,
+        `Dust Status` = input$status,
+        `Can Mega Evolve` = "No",
+        `Fast Move` = input$fast_move,
+        Charge1 = input$charge_move_1,
+        Charge2 = input$charge_move_2,
+        Level = iv_results_df()$Level[selected_index],
+        `Attack IV` = iv_results_df()$Attack_IV[selected_index],
+        `Defence IV` = iv_results_df()$Def_IV[selected_index],
+        `HP IV` = iv_results_df()$HP_IV[selected_index]
+      )
+
+    updated <- bind_rows(
+      user_table(),
+      new_row)
+    
+
+    # print(new_row)
+    saveRDS(updated, "data/user_pokemon.RDS")
+    user_table(updated)
+  })
 }
 
 shinyApp(ui, server)
