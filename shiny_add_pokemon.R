@@ -6,21 +6,23 @@ library(shiny)
 library(pokemonGoSim)
 library(DT)
 library(rhandsontable)
+library(jsonlite)
+library(htmlwidgets)
 
 base_stats <- readRDS("data/base_stats.rds")
 levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
 
-user_pokemon %>%
-  rowwise() %>%
-  mutate(CP = CP_Formula(pokemon = Pokemon, 
-      base_stats = base_stats,
-    levels = levels,
-    level = Level,
-    Attack_IV = `Attack IV`,
-    Defence_IV = `Defence IV`,
-  HP_IV = `HP IV`))
+fast_moves <- user_move_combinations %>%
+  distinct(fast_move) %>%
+  arrange() %>%
+  pull()
+
+charge_moves <- user_move_combinations %>%
+  distinct(charge_move) %>%
+  arrange() %>%
+  pull() %>% c("", .)
 
 ui <- fluidPage(
   titlePanel("Pokémon GO CP / IV Finder"),
@@ -59,10 +61,13 @@ ui <- fluidPage(
 
       h4("Possible matches"),
       tableOutput("results"),
+
+      actionButton("add_new", "Add Pokemon", class = "btn-primary"),
+
     ),
 
     mainPanel(
-
+    actionButton("modify", "Modify existing pokemon", class = "btn-primary"),
       rHandsontableOutput("user_pokemon")
     )
   )
@@ -88,13 +93,15 @@ observeEvent(input$pokemon, {
                     choices = charge_move_options)
   
   updateSelectInput(session, "charge_move_2",
-                    choices = charge_move_options)
+                    choices = c("", charge_move_options))
 })
   
   results <- eventReactive(input$run, {
 
     CP_Finder(
       pokemon = input$pokemon,
+      base_stats = base_stats,
+      levels = levels,
       target_CP = input$cp,
       status = input$status, #if (input$status == "Normal") NULL else input$status,
       target_dust = if (is.na(input$dust)) NULL else input$dust,
@@ -166,7 +173,17 @@ observeEvent(input$pokemon, {
       
       hot_col("Can Mega Evolve",
               type = "dropdown",
-              source = c("Yes", "No"))
+              source = c("Yes", "No")) %>%
+        
+      hot_col("Fast Move",
+              type = "dropdown", 
+            source = fast_moves) %>%
+        
+      hot_col("Charge1",
+        type = "dropdown", source = charge_moves) %>%
+        
+      hot_col("Charge2",
+        type = "dropdown", source = charge_moves) 
   })
 }
 
