@@ -119,3 +119,26 @@ elite_charged_tm_dps <- base_table %>%
 saveRDS(elite_fast_tm_dps, "data/elite_fast_tm_dps.RDS")
 saveRDS(elite_charged_tm_dps, "data/elite_charged_tm_dps.RDS")
 
+
+two_attack_candidates <- tibble()
+
+for (i in 1:length(unique_types)) {
+  
+  loop_type <- unique_types[i]
+
+  two_attack_candidates <- base_table %>%
+    filter(fast_category == loop_type | charge_category == loop_type) %>%
+    # filter(class == "Base") %>%
+    group_by(Pokemon, attack_type = loop_type) %>%
+    summarise(max_dps = max(dps)) %>%
+    ungroup %>%
+    top_n(n = 15, wt = max_dps) %>%
+    bind_rows(two_attack_candidates)
+}
+
+two_attack_candidates %>%
+  group_by(Pokemon) %>%
+  mutate(Types = n_distinct(attack_type))
+
+
+useful_base_attackers <- two_attack_candidates %>% select(Pokemon) %>% distinct()
