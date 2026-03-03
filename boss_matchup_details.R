@@ -1,6 +1,8 @@
 library(tidyverse)
 library(shinydashboard)
 library(shiny)
+library(pokemonGoSim)
+
 
 results_summary <- readRDS("data/results_summary.RDS")
 powered_up_summary <- readRDS("data/powered_up_summary.RDS")
@@ -144,3 +146,13 @@ results_summary %>%
         time = sum(time)) %>%
   mutate(dps = damage / time) %>%
   arrange(desc(dps))
+
+moves_formatted <- readRDS("data/moves_formatted.RDS")
+
+results_summary %>%
+  left_join(moves_formatted %>% 
+    filter(category  == "fast_move") %>%
+    select(fast_move_id = name, fast_type = type)) %>%
+  left_join(moves_formatted %>% 
+    filter(category  == "charge_move") %>%
+    select(charged_move_id = name, charged_type = type))

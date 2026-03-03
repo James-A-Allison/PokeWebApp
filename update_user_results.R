@@ -110,7 +110,7 @@ user_pokemon <- readRDS("data/user_pokemon.rds") %>%
   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
   mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
   mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid = ID,
+  select(uuid,
         pokemon_id = Pokemon,
         level = `Level`,
         iv_atk = `Attack IV`,
@@ -131,7 +131,7 @@ user_pokemon <- readRDS("data/user_pokemon.rds") %>%
   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
   mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
   mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid = ID,
+  select(uuid,
         pokemon_id = Pokemon,
         level = `Level`,
         iv_atk = `Attack IV`,
@@ -144,7 +144,7 @@ user_pokemon <- readRDS("data/user_pokemon.rds") %>%
   bind_rows(user_pokemon)
 
 user_pokemon <- bind_rows(user_pokemon %>%
-  filter(!is.na(Charge2)) %>%
+  filter(!is.na(Charge2), !is.null(Charge2)) %>%
   select(-charged_move_id) %>%
   rename(charged_move_id = Charge2),
 

@@ -13,7 +13,9 @@ levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
 
-
+# user_pokemon <- user_pokemon %>%
+#   # filter(Charge2 == "") %>%
+#   mutate(Charge2 = if_else(Charge2 == "", NA_character_, Charge2))
 
 ui <- fluidPage(
   titlePanel("Pokémon GO CP / IV Finder"),
@@ -192,7 +194,7 @@ observeEvent(input$pokemon, {
         `Can Mega Evolve` = "No",
         `Fast Move` = input$fast_move,
         Charge1 = input$charge_move_1,
-        Charge2 = input$charge_move_2,
+        Charge2 = if(input$charge_move_2 == "") {NA_character_} else {input$charge_move_2},
         Level = iv_results_df()$Level[selected_index],
         `Attack IV` = iv_results_df()$Attack_IV[selected_index],
         `Defence IV` = iv_results_df()$Def_IV[selected_index],

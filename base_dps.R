@@ -1,13 +1,5 @@
 library(tidyverse)
-library(doFuture)
-library(future)
-library(progressr)
-library(furrr)
-# devtools::install("C:/Users/james/pokemonGoSim")
 library(pokemonGoSim)
-
-options(progressr.enable = TRUE)
-options(future.globals.maxSize= 891289600)
 
 base_stats <- readRDS("data/base_stats.rds") %>%
   select(
@@ -127,18 +119,19 @@ for (i in 1:length(unique_types)) {
   loop_type <- unique_types[i]
 
   two_attack_candidates <- base_table %>%
-    filter(fast_category == loop_type | charge_category == loop_type) %>%
+    filter(charge_category == loop_type) %>%
     # filter(class == "Base") %>%
     group_by(Pokemon, attack_type = loop_type) %>%
     summarise(max_dps = max(dps)) %>%
     ungroup %>%
-    top_n(n = 15, wt = max_dps) %>%
+    top_n(n = 6, wt = max_dps) %>%
     bind_rows(two_attack_candidates)
 }
 
 two_attack_candidates %>%
   group_by(Pokemon) %>%
-  mutate(Types = n_distinct(attack_type))
+  mutate(Types = n_distinct(attack_type)) %>%
+  filter(Types > 1)
 
 
 useful_base_attackers <- two_attack_candidates %>% select(Pokemon) %>% distinct()
