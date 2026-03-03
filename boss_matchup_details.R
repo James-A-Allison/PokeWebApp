@@ -130,3 +130,17 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui, server)
+
+results_summary %>%
+  filter(raid_boss %in% upcoming_raids$raid_boss,
+          !grepl("Mega |Primal", pokemon_id),
+        tier == 5) %>%
+  group_by(pokemon_id, raid_boss, level, fast_move_id, charged_move_id) %>%
+  summarise(damage = sum(damage), time = sum(time)) %>%
+  mutate(dps = damage / time) %>%
+  group_by(raid_boss) %>%
+  top_n(n = 6, wt = dps) %>%
+  summarise(damage = sum(damage),
+        time = sum(time)) %>%
+  mutate(dps = damage / time) %>%
+  arrange(desc(dps))

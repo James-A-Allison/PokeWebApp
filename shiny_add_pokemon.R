@@ -67,6 +67,8 @@ ui <- fluidPage(
     mainPanel(
       dataTableOutput("iv_results"),
       actionButton("add_new", "Add Pokemon", class = "btn-primary"),
+      selectInput("filter_pokemon", "Pokemon",
+            choices = c("All", sort(unique(user_move_combinations$Pokemon)))),
       dataTableOutput("user_pokemon")
     )
   )
@@ -95,6 +97,30 @@ observeEvent(input$pokemon, {
                     choices = c("", charge_move_options))
 })
   
+  filtered_user_table <- reactive({
+  df <- user_table()
+  
+  # Filter by status
+  if (!is.null(input$filter_status) && input$filter_status != "All") {
+    df <- df %>%
+      filter(`Dust Status` == input$filter_status)
+  }
+  
+  # Filter by Pokemon
+  if (!is.null(input$filter_pokemon) && input$filter_pokemon != "All") {
+    df <- df %>%
+      filter(Pokemon == input$filter_pokemon)
+  }
+  
+  # Filter by Mega eligibility
+  if (isTRUE(input$filter_mega)) {
+    df <- df %>%
+      filter(`Can Mega Evolve` == "Yes")
+  }
+  
+  df
+})
+
   iv_results_df <- eventReactive(input$run, {
 
     CP_Finder(
@@ -144,7 +170,7 @@ observeEvent(input$pokemon, {
   })
 
   output$user_pokemon <- renderDataTable({
-      user_table() %>%
+      filtered_user_table() %>%
       inner_join(levels %>% select(Level, `CP Multiplier`)) %>%
       rowwise() %>%
       mutate(CP = CP_Formula(pokemon = Pokemon, 
@@ -161,7 +187,7 @@ observeEvent(input$pokemon, {
 
   observeEvent(input$add_new, {
     req(input$iv_results_rows_selected)
-    browser()
+    # browser()
     selected_index <- input$iv_results_rows_selected
 
     new_id <- user_table() %>% select(ID) %>% pull() %>% max() + 1
