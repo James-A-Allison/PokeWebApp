@@ -23,10 +23,10 @@ calendar <- read_sheet(wb, sheet = "Calendar")
 #   select(Pokemon, `Move Name`, legacy) %>%
 #   saveRDS("data/pokemon_moves.RDS")  
 
-user_pokemon <- read_sheet(wb,
-                    sheet = "User Pokemon") %>%
-  filter(!is.na(`Pokemon`)) %>%
-  select(ID, Pokemon, `Dust Status`, `Can Mega Evolve`, `Fast Move`, Charge1, Charge2, Level, `Attack IV`, `Defence IV`, `HP IV`)
+# user_pokemon <- read_sheet(wb,
+#                     sheet = "User Pokemon") %>%
+#   filter(!is.na(`Pokemon`)) %>%
+#   select(ID, Pokemon, `Dust Status`, `Can Mega Evolve`, `Fast Move`, Charge1, Charge2, Level, `Attack IV`, `Defence IV`, `HP IV`)
 
 type_effectiveness <- read_sheet(wb,
                           sheet = "Type Effectiveness Output") %>%
@@ -45,7 +45,7 @@ saveRDS(type_effectiveness, "data/type_effectiveness.RDS")
 saveRDS(weather, "data/weather.RDS")   
 saveRDS(moves_ids, "data/move_ids.RDS")
 saveRDS(pokemon_ids, "data/pokemon_ids.RDS")
-saveRDS(user_pokemon, "data/user_pokemon.RDS")
+# saveRDS(user_pokemon, "data/user_pokemon.RDS")
 saveRDS(calendar, "data/calendar.RDS")
 
 

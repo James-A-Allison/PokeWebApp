@@ -5,24 +5,15 @@ library(googlesheets4)
 library(shiny)
 library(pokemonGoSim)
 library(DT)
+library(uuid)
+
 
 base_stats <- readRDS("data/base_stats.rds")
 levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
 
-      user_pokemon %>%
-      inner_join(levels %>% select(Level, `CP Multiplier`)) %>%
-      rowwise() %>%
-      mutate(CP = CP_Formula(pokemon = Pokemon, 
-        base_stats = base_stats,
-        levels = levels,
-        level = Level,
-        CP_Multiplier = `CP Multiplier`,
-        Attack_IV = `Attack IV`,
-        Defence_IV = `Defence IV`,
-        HP_IV = `HP IV`),
-      .after = `Pokemon`)
+
 
 ui <- fluidPage(
   titlePanel("Pokémon GO CP / IV Finder"),
@@ -69,7 +60,9 @@ ui <- fluidPage(
       actionButton("add_new", "Add Pokemon", class = "btn-primary"),
       selectInput("filter_pokemon", "Pokemon",
             choices = c("All", sort(unique(user_move_combinations$Pokemon)))),
-      dataTableOutput("user_pokemon")
+      dataTableOutput("user_pokemon"),
+      actionButton("remove_pokemon", "Remove Pokemon", class = "btn-primary")
+
     )
   )
 )
@@ -182,7 +175,7 @@ observeEvent(input$pokemon, {
         Defence_IV = `Defence IV`,
         HP_IV = `HP IV`),
       .after = `Pokemon`) %>%
-        select(-c(ID, `CP Multiplier`))
+        select(-c(uuid, `CP Multiplier`))
   },selection = "single", rownames = FALSE)
 
   observeEvent(input$add_new, {
@@ -190,10 +183,10 @@ observeEvent(input$pokemon, {
     # browser()
     selected_index <- input$iv_results_rows_selected
 
-    new_id <- user_table() %>% select(ID) %>% pull() %>% max() + 1
+    # new_id <- user_table() %>% select(ID) %>% pull() %>% max() + 1
 
     new_row <- tibble(
-        ID = new_id,
+        uuid = UUIDgenerate(),
         Pokemon = input$pokemon,
         `Dust Status` = input$status,
         `Can Mega Evolve` = "No",
@@ -215,6 +208,22 @@ observeEvent(input$pokemon, {
     saveRDS(updated, "data/user_pokemon.RDS")
     user_table(updated)
   })
+
+    observeEvent(input$remove_pokemon, {
+    req(input$user_pokemon_rows_selected)
+    # browser()
+    # current <- data$pokemon_moves %>%
+    #   filter(pokemon_id == input$pokemon)
+    uuid_to_remove <- filtered_user_table() %>%
+      slice(input$user_pokemon_rows_selected) %>%
+      select(uuid) %>%
+      pull()
+    updated <- user_table() %>%
+      filter(uuid != uuid_to_remove)
+    
+    saveRDS(updated, "data/user_pokemon.RDS")
+    user_table(updated)
+    })
 }
 
 shinyApp(ui, server)
