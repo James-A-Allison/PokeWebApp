@@ -8,7 +8,15 @@ library(DT)
 library(uuid)
 
 
-base_stats <- readRDS("data/base_stats.rds")
+base_stats <- readRDS("data/base_stats.rds") 
+
+mega_table <- base_stats %>%
+  left_join(readRDS("data/mega_table.RDS") %>%
+            mutate(can_mega_evolve = "Yes") %>%
+    select(name = base_name, can_mega_evolve)) %>%
+  mutate(can_mega_evolve = if_else(is.na(can_mega_evolve), "No", can_mega_evolve))
+
+
 levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
@@ -27,6 +35,9 @@ ui <- fluidPage(
         "Pokémon",
         choices = sort(unique(base_stats$name))
       ),
+      selectInput("can_mega", "Can Mega evolve?", choices = NULL),
+      selectInput("can_dyanamax", "Can battle in Max Raids?", choices = NULL, selected = "No"),
+
 
       selectInput(
         "status",
@@ -75,7 +86,6 @@ server <- function(input, output, session) {
   
 observeEvent(input$pokemon, {
   req(input$pokemon)
-  
   pokemon_moves <- user_move_combinations %>%
     filter(Pokemon == input$pokemon)
   
@@ -90,28 +100,49 @@ observeEvent(input$pokemon, {
   
   updateSelectInput(session, "charge_move_2",
                     choices = c("", charge_move_options))
+  
+  poke_table <- base_stats %>%
+    filter(name == input$pokemon) %>% 
+    select(`Shadow Released`, `Dynamax Released`)
+
+  shadow_options <- if(poke_table$`Shadow Released` == "Yes") {
+     c("Normal", "Lucky", "Shadow", "Purified") } else {
+     c("Normal", "Lucky")
+  }
+
+  dynamax_options <- if(poke_table$`Dynamax Released` == "Yes") {
+     c("No", "Yes") } else {
+     c("No")
+  }
+
+  mega_table_ui <- mega_table %>% filter(name == input$pokemon)
+
+  mega_options <- if(mega_table_ui$can_mega_evolve == "Yes") {
+     c("No", "Yes") } else {
+     c("No")
+  }
+
+  updateSelectInput(session, "status",
+                    choices = shadow_options)
+  
+  updateSelectInput(session, "can_mega",
+                    choices = mega_options)
+  
+  updateSelectInput(session, "can_dyanamax",
+                    choices = c(dynamax_options))
+
 })
   
   filtered_user_table <- reactive({
   df <- user_table()
   
-  # Filter by status
-  if (!is.null(input$filter_status) && input$filter_status != "All") {
-    df <- df %>%
-      filter(`Dust Status` == input$filter_status)
-  }
   
   # Filter by Pokemon
   if (!is.null(input$filter_pokemon) && input$filter_pokemon != "All") {
     df <- df %>%
       filter(Pokemon == input$filter_pokemon)
   }
-  
-  # Filter by Mega eligibility
-  if (isTRUE(input$filter_mega)) {
-    df <- df %>%
-      filter(`Can Mega Evolve` == "Yes")
-  }
+
   
   df
 })
@@ -165,6 +196,7 @@ observeEvent(input$pokemon, {
   })
 
   output$user_pokemon <- renderDataTable({
+    # browser()
       filtered_user_table() %>%
       inner_join(levels %>% select(Level, `CP Multiplier`)) %>%
       rowwise() %>%
@@ -191,7 +223,8 @@ observeEvent(input$pokemon, {
         uuid = UUIDgenerate(),
         Pokemon = input$pokemon,
         `Dust Status` = input$status,
-        `Can Mega Evolve` = "No",
+        `Can Mega Evolve` = input$can_mega,
+        `Can Dynamax` = input$can_dyanamax,
         `Fast Move` = input$fast_move,
         Charge1 = input$charge_move_1,
         Charge2 = if(input$charge_move_2 == "") {NA_character_} else {input$charge_move_2},

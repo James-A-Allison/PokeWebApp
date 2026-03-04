@@ -57,3 +57,39 @@ pokemon_summaries <- input_table %>%
     summarise(n = n_distinct(uuid),
             level = mean(Level),
             CP = mean(CP)) 
+
+type_colours <- c(
+  Normal   = "#A8A77A",
+  Fire     = "#EE8130",
+  Water    = "#6390F0",
+  Electric = "#F7D02C",
+  Grass    = "#7AC74C",
+  Ice      = "#96D9D6",
+  Fighting = "#C22E28",
+  Poison   = "#A33EA1",
+  Ground   = "#E2BF65",
+  Flying   = "#A98FF3",
+  Psychic  = "#F95587",
+  Bug      = "#A6B91A",
+  Rock     = "#B6A136",
+  Ghost    = "#735797",
+  Dragon   = "#6F35FC",
+  Dark     = "#705746",
+  Steel    = "#B7B7CE",
+  Fairy    = "#D685AD"
+)
+
+user_pokemon %>%
+  left_join(base_stats %>% select(Pokemon = name, type_1 = `Type 1`, type_2 = `Type 2`)) %>%
+  # mutate(Type = if_else(type_1 == type_2, type_1, paste(type_1, type_2, sep = " & "))) %>%
+  select(Pokemon, Level, type_1, type_2, uuid) %>%
+  distinct() %>%
+  ggplot(aes(x = Level, fill = type_1, color = type_2)) +
+  geom_dotplot(stackgroups = TRUE, stackdir = "up") +
+  scale_fill_manual(values = type_colours) +
+  scale_color_manual(values = type_colours)
+
+
+
+
+
