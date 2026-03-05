@@ -7,8 +7,30 @@ library(pokemonGoSim)
 library(DT)
 library(uuid)
 
+type_colours <- c(
+  Normal   = "#A8A77A",
+  Fire     = "#EE8130",
+  Water    = "#6390F0",
+  Electric = "#F7D02C",
+  Grass    = "#7AC74C",
+  Ice      = "#96D9D6",
+  Fighting = "#C22E28",
+  Poison   = "#A33EA1",
+  Ground   = "#E2BF65",
+  Flying   = "#A98FF3",
+  Psychic  = "#F95587",
+  Bug      = "#A6B91A",
+  Rock     = "#B6A136",
+  Ghost    = "#735797",
+  Dragon   = "#6F35FC",
+  Dark     = "#705746",
+  Steel    = "#B7B7CE",
+  Fairy    = "#D685AD"
+)
 
 base_stats <- readRDS("data/base_stats.rds") 
+
+poke_types <- base_stats %>% select(`Type 1`) %>% distinct() %>% pull()
 
 mega_table <- base_stats %>%
   left_join(readRDS("data/mega_table.RDS") %>%
@@ -20,6 +42,8 @@ mega_table <- base_stats %>%
 levels <- readRDS("data/levels.rds")
 user_move_combinations <- readRDS("data/user_move_combinations.RDS")
 user_pokemon <- readRDS("data/user_pokemon.RDS")
+
+moves_formatted <- readRDS("data/moves_formatted.RDS")
 
 # user_pokemon <- user_pokemon %>%
 #   # filter(Charge2 == "") %>%
@@ -37,6 +61,7 @@ ui <- fluidPage(
       ),
       selectInput("can_mega", "Can Mega evolve?", choices = NULL),
       selectInput("can_dyanamax", "Can battle in Max Raids?", choices = NULL, selected = "No"),
+       numericInput("cp", "Target CP", value = 1500, min = 10, max = 10000),
 
 
       selectInput(
@@ -52,7 +77,6 @@ ui <- fluidPage(
 
       selectInput("charge_move_2", "Charge Move 2", choices = NULL),
 
-      numericInput("cp", "Target CP", value = 1500, min = 10, max = 10000),
 
       uiOutput("dust_ui"),
 
@@ -74,8 +98,10 @@ ui <- fluidPage(
       selectInput("filter_pokemon", "Pokemon",
             choices = c("All", sort(unique(user_move_combinations$Pokemon)))),
       dataTableOutput("user_pokemon"),
-      actionButton("remove_pokemon", "Remove Pokemon", class = "btn-primary")
-
+      actionButton("remove_pokemon", "Remove Pokemon", class = "btn-primary"),
+      plotOutput("level_dotplot"),
+      dataTableOutput("attacker_type_summaries"),
+      dataTableOutput("pokemon_summaries")
     )
   )
 )
@@ -86,6 +112,7 @@ server <- function(input, output, session) {
   
 observeEvent(input$pokemon, {
   req(input$pokemon)
+  # browser()
   pokemon_moves <- user_move_combinations %>%
     filter(Pokemon == input$pokemon)
   
@@ -99,7 +126,8 @@ observeEvent(input$pokemon, {
                     choices = charge_move_options)
   
   updateSelectInput(session, "charge_move_2",
-                    choices = c("", charge_move_options))
+                    choices = c("", charge_move_options),
+                  selected = "")
   
   poke_table <- base_stats %>%
     filter(name == input$pokemon) %>% 
@@ -117,19 +145,22 @@ observeEvent(input$pokemon, {
 
   mega_table_ui <- mega_table %>% filter(name == input$pokemon)
 
-  mega_options <- if(mega_table_ui$can_mega_evolve == "Yes") {
+  mega_options <- if("Yes" %in% mega_table_ui$can_mega_evolve) {
      c("No", "Yes") } else {
      c("No")
   }
 
   updateSelectInput(session, "status",
-                    choices = shadow_options)
+                    choices = shadow_options,
+                  selected = "Normal")
   
   updateSelectInput(session, "can_mega",
-                    choices = mega_options)
+                    choices = mega_options,
+                  selected = "No")
   
   updateSelectInput(session, "can_dyanamax",
-                    choices = c(dynamax_options))
+                    choices = c(dynamax_options),
+                  selected = "No")
 
 })
   
@@ -259,6 +290,90 @@ observeEvent(input$pokemon, {
     saveRDS(updated, "data/user_pokemon.RDS")
     user_table(updated)
     })
+  
+  # output$level_dotplot <- renderPlot({
+  #   user_table() %>%
+  #     left_join(base_stats %>% select(Pokemon = name, type_1 = `Type 1`, type_2 = `Type 2`)) %>%
+  #     # mutate(Type = if_else(type_1 == type_2, type_1, paste(type_1, type_2, sep = " & "))) %>%
+  #     select(Pokemon, Level, type_1, type_2, uuid) %>%
+  #     distinct() %>%
+  #     ggplot(aes(x = Level, fill = type_1, color = type_2)) +
+  #     geom_dotplot(stackgroups = TRUE, stackdir = "up") +
+  #     scale_fill_manual(values = type_colours) +
+  #     scale_color_manual(values = type_colours)
+  # })
+  
+  # output$pokemon_summaries <- renderDataTable({
+  # user_table() %>%
+  #     inner_join(levels %>% select(Level, `CP Multiplier`)) %>%
+  # left_join(moves_formatted %>% 
+  #   filter(category  == "fast_move") %>%
+  #   select(`Fast Move` = name, fast_type = type)) %>%
+  # left_join(moves_formatted %>% 
+  #   filter(category  == "charge_move") %>%
+  #   select(Charge1 = name, charged_type1 = type)) %>%
+  # left_join(moves_formatted %>% 
+  #   filter(category  == "charge_move") %>%
+  #   select(Charge2 = name, charged_type2 = type)) %>%
+  # rowwise() %>%
+  # mutate(CP = CP_Formula(pokemon = Pokemon, 
+  #       base_stats = base_stats,
+  #       levels = levels,
+  #       level = Level,
+  #       CP_Multiplier = `CP Multiplier`,
+  #       Attack_IV = `Attack IV`,
+  #       Defence_IV = `Defence IV`,
+  #       HP_IV = `HP IV`)) %>%
+  #   group_by(Pokemon) %>% 
+  #     summarise(n = n_distinct(uuid),
+  #             level = mean(Level),
+  #             CP = mean(CP))
+
+  # })
+
+
+ output$attacker_type_summaries <- renderDataTable({
+   attacker_type_summaries <- tibble()
+
+   input_table <- user_table() %>%
+     inner_join(levels %>% select(Level, `CP Multiplier`)) %>%
+  left_join(moves_formatted %>% 
+    filter(category  == "fast_move") %>%
+    select(`Fast Move` = name, fast_type = type)) %>%
+  left_join(moves_formatted %>% 
+    filter(category  == "charge_move") %>%
+    select(Charge1 = name, charged_type1 = type)) %>%
+  left_join(moves_formatted %>% 
+    filter(category  == "charge_move") %>%
+    select(Charge2 = name, charged_type2 = type)) %>%
+  rowwise() %>%
+  mutate(CP = CP_Formula(pokemon = Pokemon, 
+        base_stats = base_stats,
+        levels = levels,
+        level = Level,
+        CP_Multiplier = `CP Multiplier`,
+        Attack_IV = `Attack IV`,
+        Defence_IV = `Defence IV`,
+        HP_IV = `HP IV`)) %>%
+  ungroup()
+
+for (i in seq(poke_types)) {
+  poke_type <- poke_types[i]
+
+  attacker_type_summaries <- input_table %>%
+    filter(fast_type == poke_type |
+          charged_type1 == poke_type |
+          charged_type2 == poke_type ) %>%
+    summarise(n = n_distinct(uuid),
+            level = mean(Level),
+            CP = mean(CP)) %>%
+              mutate(attacker_type = poke_type) %>%
+              bind_rows(attacker_type_summaries)
+}
+   attacker_type_summaries %>%
+    select(attacker_type, n, level, CP)
+   
+ }, rownames = FALSE)
 }
 
 shinyApp(ui, server)

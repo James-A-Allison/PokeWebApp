@@ -20,24 +20,24 @@ ui <- dashboardPage(
     )
   ),
   dashboardBody(
-    tabItems(
+    # tabItems(
       tabItem(tabName = "overview",
           fluidRow(
             box(plotOutput("summary_voilin")),
             box(tableOutput("useful_mons"))
                  )
              )
-            ,
-    tabItems(
-      tabItem(tabName = "boss_deep_dive",
-              h2("WIP")
-      )
-    ),
-    tabItems(
-      tabItem(tabName = "power_up_planner",
-            h2("WIP 2"))
-    )
-  )
+  #           ,
+  #   tabItems(
+  #     tabItem(tabName = "boss_deep_dive",
+  #             h2("WIP")
+  #     )
+  #   ),
+  #   tabItems(
+  #     tabItem(tabName = "power_up_planner",
+  #           h2("WIP 2"))
+  #   )
+  # )
 )
 )
 
