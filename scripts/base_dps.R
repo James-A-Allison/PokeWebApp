@@ -134,4 +134,15 @@ two_attack_candidates %>%
   filter(Types > 1)
 
 
-useful_base_attackers <- two_attack_candidates %>% select(Pokemon) %>% distinct()
+baseline <- base_table %>%
+  filter(fast_category == "Water" | charge_category == "Water") %>%
+  filter(elite_fast_tm == "No",
+        elite_charged_tm == "No",
+      class %in% c("Base", "Starter")) %>%
+  top_n(n = 1, wt = dps)
+
+test <- base_table %>%
+  filter(fast_category == "Water" | charge_category == "Water") %>%
+  filter(elite_fast_tm == "No",
+        elite_charged_tm == "No",
+      class %in% c("Base", "Starter"))
