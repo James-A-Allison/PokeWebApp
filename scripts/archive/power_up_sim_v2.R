@@ -1,19 +1,10 @@
 library(tidyverse)
-library(shinydashboard)
-library(shiny)
 library(doFuture)
 library(future)
 library(progressr)
 library(furrr)
+# devtools::install("C:/Users/james/pokemonGoSim")
 library(pokemonGoSim)
-library(DT)
-library(shinycssloaders)
-
-handlers(global = TRUE)
-handlers("shiny")
-
-registerDoFuture()
-plan(multisession, workers = 10)  # or however many
 
 pokemon_moves <- readRDS("data/pokemon_moves.rds")
 moves <- readRDS("data/moves.rds")
@@ -21,15 +12,6 @@ moves <- readRDS("data/moves.rds")
 
 pokemon_ids <- readRDS("data/pokemon_ids.rds")
 move_ids <- readRDS("data/move_ids.rds")
-
-results_summary <- readRDS("data/results_summary.RDS")
-upcoming_raids <- readRDS("data/calendar.RDS") %>%
-  filter(To >= Sys.Date()) %>%
-  select(raid_boss = `Raid Boss`, tier = Tier)
-
-raid_boss_tier <- c(
-  results_summary %>% select(tier) %>% distinct %>% arrange(tier) %>% pull
-)
 
 dust_table <-readRDS("data/levels.RDS") %>%
   select(level = Level,
@@ -59,16 +41,48 @@ raid_bosses <- readRDS("data/base_stats.rds") %>%
   distinct() %>%
   left_join(raid_boss_tiers)
 
-boss_move_combinations <- readRDS("data/boss_move_combinations.RDS")
+boss_move_combinations <- inner_join(
+  pokemon_moves %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
+    select(Pokemon, `Move Name`, legacy) %>%
+    filter(legacy == "No") %>%
+    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
+    select(Pokemon, fast_move = `Move Name`),
 
-moves <- readRDS("data/moves_formatted.RDS")
+  pokemon_moves %>%
+    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
+    select(Pokemon, `Move Name`, legacy) %>%
+    filter(legacy == "No") %>%
+    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
+    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
+)
+
+moves <- moves %>%
+      mutate(
+        energy_delta = (`Energy Gain` * 1) + (`Energy Cost` * -1),
+        duration_ms = Duration * 1000,
+        category = case_when(
+          `Move Type` == "Fast" ~ "fast_move",
+          `Move Type` == "Charge" ~ "charge_move"
+        )
+      ) %>%
+  select(
+        move_id = `Move Name`,
+        name = `Move Name`,
+        category,
+        power = Power,
+        energy_delta,
+        duration_ms,
+        type = Category)
 
 user_pokemon <- readRDS("data/user_pokemon.rds") %>%
   mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
   mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
   mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid = ID,
+  select(uuid,
         pokemon_id = Pokemon,
         dust_status = `Dust Status`,
         level = `Level`,
@@ -90,7 +104,7 @@ user_pokemon <- readRDS("data/user_pokemon.rds") %>%
   mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
   mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
   mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid = ID,
+  select(uuid,
         pokemon_id = Pokemon,
         dust_status = `Dust Status`,
         level = `Level`,
@@ -120,6 +134,7 @@ max_level_with_dust_fast <- function(current_level,
                                      dust_col = "normal_dust"
                                     ,max_level = 50) {
   dust_col = tolower(dust_col)
+  # browser()
   # Pull chosen dust column once (fast)
   dusts_all <- levels_tbl[[dust_col]]
   levels_all <- levels_tbl$level
@@ -158,90 +173,34 @@ max_level_with_dust_fast <- function(current_level,
   ))
 }
 
-ui <- dashboardPage(
-  dashboardHeader(),
-  dashboardSidebar(),
-  dashboardBody(
-    selectInput("raid_tier", "Select a raid tier: ", raid_boss_tier),
-    selectInput("raid_boss", "Select a raid boss: ", choices = NULL),
-    radioButtons(
-      "max_level",
-      "What is the maximum level to power-up to?",
-      choices = c(20,25,30,35,40,45,50),
-      selected = 50
-    ),
-    numericInput("max_dust", "How much stardust are you prepared to use?", value = 50000, min = 100, max = 700000),
-    actionButton("run_scenario", "Run calculations"),
-    checkboxInput("legendaries", "Include Legendary Pokemon?", value = TRUE),
-    checkboxInput("myth", "Include Mythical Pokemon?", value = TRUE),
-    dataTableOutput("normal_output"),
-    dataTableOutput("mega_output"),
-
-  )
-)
-
-server <- function(input, output, session) {
-  data <- reactiveValues(
-    raid_boss_list = bind_rows(
-      upcoming_raids %>%
-        arrange(desc(tier), raid_boss) %>%
-        distinct() %>%
-        mutate(tier = as.character(tier)),
-      tibble(tier = as.character(1:6), raid_boss = "--"),
-      results_summary %>%
-        select(tier, raid_boss) %>%
-        distinct() %>%
-        arrange(desc(tier), raid_boss) %>%
-        mutate(tier = as.character(tier))
+leveled_up_pokemon <- user_pokemon %>%
+  rowwise() %>%
+  mutate(sim_level_up = list(max_level_with_dust_fast(
+    current_level = level,
+    dust_limit = 100000,
+    levels_tbl = dust_table,
+    max_level = 40,
+    dust_col = dust_status
+  ))) %>%  tidyr::unnest_wider(sim_level_up) %>%
+  filter(levels_gained > 0) %>%
+  rowwise() %>%
+  mutate(
+    attacker = list(
+      build_attacker(
+        pokemon_id      = pokemon_id,
+        level           = final_level,
+        fast_move_id    = fast_move_id,
+        charged_move_id = charged_move_id,
+        shadow = shadow,
+        base_stats = base_stats
+      )
     )
-  )
-
-  observeEvent(input$raid_tier, {
-    req(input$raid_tier, data$raid_boss_list)
-    boss_tiers <- data$raid_boss_list %>%
-      filter(tier == input$raid_tier)
-
-    updateSelectInput(
-      session,
-      "raid_boss",
-      choices = boss_tiers$raid_boss
-    )
-  })
-
-  results <- reactiveValues(normal_output = tibble(),
-                            mega_output = tibble())
-
-  observeEvent(input$run_scenario, {
-    # shinyjs::disable("run_sim")
-    showPageSpinner()
-    leveled_up_pokemon <- user_pokemon %>%
-        rowwise() %>%
-        mutate(sim_level_up = list(max_level_with_dust_fast(
-          current_level = level,
-          dust_limit = input$max_dust,
-          levels_tbl = dust_table,
-          max_level = input$max_level,
-          dust_col = dust_status
-        ))) %>%  tidyr::unnest_wider(sim_level_up) %>%
-        filter(levels_gained > 0) %>%
-        rowwise() %>%
-        mutate(
-          attacker = list(
-            build_attacker(
-              pokemon_id      = pokemon_id,
-              level           = final_level,
-              fast_move_id    = fast_move_id,
-              charged_move_id = charged_move_id,
-              shadow = shadow,
-              base_stats = base_stats
-            )
-          )
-        ) %>%
-        ungroup()
+  ) %>%
+  ungroup()
 
 bosses <- boss_move_combinations %>%
   inner_join(raid_bosses) %>%
-  filter(Pokemon == input$raid_boss) %>%
+  filter(Pokemon == "Primal Groudon") %>%
   rowwise() %>%
   mutate(boss = list(
     build_boss(
@@ -257,7 +216,8 @@ sim_grid <- tidyr::crossing(
   bosses)  %>%
   mutate(weather = "Extreme")
 
-
+registerDoFuture()
+plan(multisession, workers = 10)  # or however many
 
 print(Sys.time())
 
@@ -289,7 +249,6 @@ with_progress({
 
 })
 
-
 sim_list <- sim_list %>%
   mutate(
     dps    = map_dbl(sim, "dps"),
@@ -318,7 +277,7 @@ sim_list <- sim_list %>%
   )
 
 existing_sims <- readRDS("data/results_summary.RDS") %>%
-  filter(raid_boss == input$raid_boss)
+  filter(raid_boss == "Primal Groudon")
 
 leveled_up_mega <- leveled_up_pokemon %>% filter(grepl("Mega |Primal", pokemon_id))
 leveled_up_normal <- leveled_up_pokemon %>% filter(!grepl("Mega |Primal", pokemon_id))
@@ -418,27 +377,4 @@ normal_output <- normal_loop %>%
   left_join(baseline_normal_dps) %>%
   mutate(dps_gain = leveled_up_avg_dps - avg_dps) %>%
   arrange(desc(dps_gain))
-  
-  hidePageSpinner()
 
-  results$normal_output <- normal_output %>% select(pokemon_id, dust_status, level, 
-    final_level, fast_move_id, charged_move_id, dps_gain, leveled_up_avg_dps,
-     dps_rank, levels_gained, total_dust_used)
-  results$mega_output <- mega_output %>% select(pokemon_id, dust_status, level, 
-    final_level, fast_move_id, charged_move_id, dps_gain, leveled_up_avg_dps,
-     dps_rank, levels_gained, total_dust_used)
-
-  # shinyjs::enable("run_sim")
-  })
-
-  output$normal_output <- renderDT({
-    req(results$normal_output)
-  })
-  
-  output$mega_output <- renderDT({
-    req(results$mega_output)
-  })
-
-}
-
-shinyApp(ui, server)
