@@ -133,3 +133,13 @@ get_weather <- function() {
 user_pokemon_enriched <- function() {
 
 }
+
+get_dust_status <- function() {
+
+  con <- get_con(read_only = TRUE)
+  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+
+  dplyr::tbl(con, "dust_status") |>
+    dplyr::collect()
+
+}

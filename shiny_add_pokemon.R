@@ -46,12 +46,13 @@ mega_table <- base_stats %>%
     select(name = base_name, can_mega_evolve)) %>%
   mutate(can_mega_evolve = if_else(is.na(can_mega_evolve), "No", can_mega_evolve))
 
-
+moves <- get_moves()
 levels <- get_levels()
 user_move_combinations <- get_user_move_combinations()
 # user_pokemon <- readRDS("data/user_pokemon.RDS")
 
 moves_formatted <- get_moves_formatted()
+dust_status <- get_dust_status()
 
 # user_pokemon <- user_pokemon %>%
 #   # filter(Charge2 == "") %>%
@@ -122,7 +123,7 @@ server <- function(input, output, session) {
     DBI::dbDisconnect(con, shutdown = FALSE)
   })
 
-  user_table <- reactive({
+  user_table <- reactiveVal({
     # browser()
   get_user_pokemon_enriched(user_id #session$user$id
     ) %>%
@@ -282,27 +283,54 @@ observeEvent(input$pokemon, {
     # new_id <- user_table() %>% select(ID) %>% pull() %>% max() + 1
 
     new_row <- tibble(
-        pokemon_instance_id = UUIDgenerate(),
-        Pokemon = input$pokemon,
-        `Dust Status` = input$status,
-        `Can Mega Evolve` = input$can_mega,
-        `Can Dynamax` = input$can_dyanamax,
-        `Fast Move` = input$fast_move,
-        Charge1 = input$charge_move_1,
-        Charge2 = if(input$charge_move_2 == "") {NA_character_} else {input$charge_move_2},
-        Level = iv_results_df()$Level[selected_index],
-        `Attack IV` = iv_results_df()$Attack_IV[selected_index],
-        `Defence IV` = iv_results_df()$Def_IV[selected_index],
-        `HP IV` = iv_results_df()$HP_IV[selected_index]
+      user_id = user_id,
+      pokemon_instance_id = UUIDgenerate(),
+      pokemon_id = pokemon_id$pokemon_id[pokemon_id$name == input$pokemon],
+      nickname = NA_character_,
+      can_mega_evolve = if(input$can_mega == "Yes") {TRUE} else {FALSE},
+      can_dynamax = if(input$can_dyanamax == "Yes") {TRUE} else {FALSE},
+      fast_move_id = moves$move_id[moves$name == input$fast_move],
+      charge_move_1_id = moves$move_id[moves$name == input$charge_move_1],
+      charge_move_2_id = if(input$charge_move_2 == "") {NA_character_} else {moves$move_id[moves$name == input$charge_move_2]},
+      dust_id = dust_status$dust_id[dust_status$dust_status == input$status],
+
+        # Pokemon = input$pokemon,
+        # `Dust Status` = input$status,
+        # `Can Mega Evolve` = input$can_mega,
+        # `Can Dynamax` = input$can_dyanamax,
+        # `Fast Move` = input$fast_move,
+        # Charge1 = input$charge_move_1,
+        # Charge2 = if(input$charge_move_2 == "") {NA_character_} else {input$charge_move_2},
+        level = iv_results_df()$Level[selected_index],
+        attack_iv = iv_results_df()$Attack_IV[selected_index],
+        defence_iv = iv_results_df()$Def_IV[selected_index],
+        hp_iv = iv_results_df()$HP_IV[selected_index]
       )
 
-    updated <- bind_rows(
-      user_table(),
-      new_row)
+    # updated <- bind_rows(
+    #   user_table(),
+    #   new_row)
     
+    add_user_pokemon(new_row)
+    
+    updated <- get_user_pokemon_enriched(user_id #session$user$id
+    ) %>%
+  select(
+    pokemon_instance_id,
+    Pokemon,
+    `Dust Status` = dust_status,
+   `Can Mega Evolve` = can_mega_evolve,
+    `Can Dynamax` = can_dynamax,
+    `Fast Move` = fast_move,
+    Charge1,
+    Charge2,
+    Level, 
+    `Attack IV` = attack_iv, 
+    `Defence IV` = defence_iv, 
+    `HP IV` = hp_iv)
 
     # print(new_row)
-    saveRDS(updated, "data/user_pokemon.RDS")
+    # saveRDS(updated, "data/user_pokemon.RDS")
     user_table(updated)
   })
 
@@ -315,10 +343,29 @@ observeEvent(input$pokemon, {
       slice(input$user_pokemon_rows_selected) %>%
       select(pokemon_instance_id) %>%
       pull()
-    updated <- user_table() %>%
-      filter(pokemon_instance_id != uuid_to_remove)
+    # updated <- user_table() %>%
+    #   filter(pokemon_instance_id != uuid_to_remove)
+      
+    remove_user_pokemon(user_id, uuid_to_remove)
     
-    saveRDS(updated, "data/user_pokemon.RDS")
+    # saveRDS(updated, "data/user_pokemon.RDS")
+      
+    updated <- get_user_pokemon_enriched(user_id #session$user$id
+    ) %>%
+      select(
+            pokemon_instance_id,
+            Pokemon,
+            `Dust Status` = dust_status,
+            `Can Mega Evolve` = can_mega_evolve,
+            `Can Dynamax` = can_dynamax,
+            `Fast Move` = fast_move,
+            Charge1,
+            Charge2,
+            Level, 
+            `Attack IV` = attack_iv, 
+            `Defence IV` = defence_iv, 
+            `HP IV` = hp_iv)
+      
     user_table(updated)
     })
   
