@@ -3,7 +3,7 @@ library(duckdb)
 library(duckplyr)
 library(uuid)
 
-con <- dbConnect(duckdb::duckdb(), "pokemon.db")
+con <- dbConnect(duckdb::duckdb(), "data/pokemon.db")
 
 user_pokemon <- readRDS("data/user_pokemon.RDS")
 
@@ -33,16 +33,12 @@ dust_status <- tibble(
   dust_id = 1:5
 )
 
-dust_status <- user_pokemon %>%
-  select(dust_status = `Dust Status`) %>%
-  distinct() %>%
-  mutate(dust_id = case_when(
-    dust_status == "Normal" ~ 1,
-    dust_status == "Shadow" ~ 3,
-    dust_status == "Lucky" ~ 2,
-    dust_status == "Eternatus" ~ 5,
-    dust_status == "Purified" ~ 4
-              ))
+dbWriteTable(
+  con,
+  "dust_status",
+  dust_status,
+  overwrite = TRUE
+)
 
 user_pokemon <- user_pokemon %>%
   mutate(user_id = users$user_id[1],
@@ -95,3 +91,104 @@ dbWriteTable(
   pokemon_moves,
   overwrite = TRUE
 )
+
+user_row <- users <- tibble(
+  user_id = uuid::UUIDgenerate(),
+  username = "Jellyroo000m",
+  # password_hash = NA_character_,
+  created_at = Sys.time(),
+  plan = "admin"
+)
+
+dbWriteTable(
+  con,
+  "users",
+  user_row,
+  append = TRUE
+)
+
+dbReadTable(con, "users")
+
+base_stats <- readRDS("data/base_stats.RDS")
+
+dbWriteTable(
+  con,
+  "base_stats",
+  base_stats,
+  overwrite = TRUE
+)
+
+boss_move_combinations <- readRDS("data/boss_move_combinations.RDS")
+
+dbWriteTable(
+  con,
+  "boss_move_combinations",
+  boss_move_combinations,
+  overwrite = TRUE
+)
+
+calendar <- readRDS("data/calendar.RDS")
+
+dbWriteTable(
+  con,
+  "calendar",
+  calendar,
+  overwrite = TRUE
+)
+
+levels <- readRDS("data/levels.RDS")
+
+dbWriteTable(
+  con,
+  "levels",
+  levels,
+  overwrite = TRUE
+)
+
+mega_table <- readRDS("data/mega_table.RDS")
+
+dbWriteTable(
+  con,
+  "mega_table",
+  mega_table,
+  overwrite = TRUE
+)
+
+moves_formatted <- readRDS("data/moves_formatted.RDS")
+
+dbWriteTable(
+  con,
+  "moves_formatted",
+  moves_formatted,
+  overwrite = TRUE
+)
+
+type_effectiveness <- readRDS("data/type_effectiveness.RDS") 
+
+dbWriteTable(
+  con,
+  "type_effectiveness",
+  type_effectiveness,
+  overwrite = TRUE
+)
+
+user_move_combinations <- readRDS("data/user_move_combinations.RDS") 
+
+dbWriteTable(
+  con,
+  "user_move_combinations",
+  user_move_combinations,
+  overwrite = TRUE
+)
+
+weather <- readRDS("data/weather.RDS")
+
+dbWriteTable(
+  con,
+  "weather",
+  weather,
+  overwrite = TRUE
+)
+
+dbDisconnect(con, shutdown = FALSE)
+

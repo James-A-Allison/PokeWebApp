@@ -7,6 +7,12 @@ library(pokemonGoSim)
 library(DT)
 library(uuid)
 
+files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
+
+lapply(files, source)
+
+user_id <- "0a08ee46-2663-4155-a535-22a93cd5a821"
+
 type_colours <- c(
   Normal   = "#A8A77A",
   Fire     = "#EE8130",
@@ -28,22 +34,24 @@ type_colours <- c(
   Fairy    = "#D685AD"
 )
 
-base_stats <- readRDS("data/base_stats.rds") 
+pokemon_id <- get_pokemon_id()
+
+base_stats <- get_base_stats() 
 
 poke_types <- base_stats %>% select(`Type 1`) %>% distinct() %>% pull()
 
 mega_table <- base_stats %>%
-  left_join(readRDS("data/mega_table.RDS") %>%
+  left_join(get_mega_table() %>%
             mutate(can_mega_evolve = "Yes") %>%
     select(name = base_name, can_mega_evolve)) %>%
   mutate(can_mega_evolve = if_else(is.na(can_mega_evolve), "No", can_mega_evolve))
 
 
-levels <- readRDS("data/levels.rds")
-user_move_combinations <- readRDS("data/user_move_combinations.RDS")
-user_pokemon <- readRDS("data/user_pokemon.RDS")
+levels <- get_levels()
+user_move_combinations <- get_user_move_combinations()
+# user_pokemon <- readRDS("data/user_pokemon.RDS")
 
-moves_formatted <- readRDS("data/moves_formatted.RDS")
+moves_formatted <- get_moves_formatted()
 
 # user_pokemon <- user_pokemon %>%
 #   # filter(Charge2 == "") %>%
@@ -107,8 +115,31 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  
+    con <- get_con()
 
-  user_table <- reactiveVal(readRDS("data/user_pokemon.RDS"))
+  session$onSessionEnded(function() {
+    DBI::dbDisconnect(con, shutdown = FALSE)
+  })
+
+  user_table <- reactive({
+    # browser()
+  get_user_pokemon_enriched(user_id #session$user$id
+    ) %>%
+  select(
+    pokemon_instance_id,
+    Pokemon,
+    `Dust Status` = dust_status,
+   `Can Mega Evolve` = can_mega_evolve,
+    `Can Dynamax` = can_dynamax,
+    `Fast Move` = fast_move,
+    Charge1,
+    Charge2,
+    Level, 
+    `Attack IV` = attack_iv, 
+    `Defence IV` = defence_iv, 
+    `HP IV` = hp_iv)
+})
   
 observeEvent(input$pokemon, {
   req(input$pokemon)
@@ -166,7 +197,7 @@ observeEvent(input$pokemon, {
   
   filtered_user_table <- reactive({
   df <- user_table()
-  
+  # browser()
   
   # Filter by Pokemon
   if (!is.null(input$filter_pokemon) && input$filter_pokemon != "All") {
@@ -240,7 +271,7 @@ observeEvent(input$pokemon, {
         Defence_IV = `Defence IV`,
         HP_IV = `HP IV`),
       .after = `Pokemon`) %>%
-        select(-c(uuid, `CP Multiplier`))
+        select(-c(pokemon_instance_id, `CP Multiplier`))
   },selection = "single", rownames = FALSE)
 
   observeEvent(input$add_new, {
@@ -251,7 +282,7 @@ observeEvent(input$pokemon, {
     # new_id <- user_table() %>% select(ID) %>% pull() %>% max() + 1
 
     new_row <- tibble(
-        uuid = UUIDgenerate(),
+        pokemon_instance_id = UUIDgenerate(),
         Pokemon = input$pokemon,
         `Dust Status` = input$status,
         `Can Mega Evolve` = input$can_mega,
@@ -282,10 +313,10 @@ observeEvent(input$pokemon, {
     #   filter(pokemon_id == input$pokemon)
     uuid_to_remove <- filtered_user_table() %>%
       slice(input$user_pokemon_rows_selected) %>%
-      select(uuid) %>%
+      select(pokemon_instance_id) %>%
       pull()
     updated <- user_table() %>%
-      filter(uuid != uuid_to_remove)
+      filter(pokemon_instance_id != uuid_to_remove)
     
     saveRDS(updated, "data/user_pokemon.RDS")
     user_table(updated)
@@ -364,7 +395,7 @@ for (i in seq(poke_types)) {
     filter(fast_type == poke_type |
           charged_type1 == poke_type |
           charged_type2 == poke_type ) %>%
-    summarise(n = n_distinct(uuid),
+    summarise(n = n_distinct(pokemon_instance_id),
             level = mean(Level),
             CP = mean(CP)) %>%
               mutate(attacker_type = poke_type) %>%
