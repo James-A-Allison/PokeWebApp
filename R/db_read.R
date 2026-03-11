@@ -143,3 +143,13 @@ get_dust_status <- function() {
     dplyr::collect()
 
 }
+
+get_users <- function() {
+
+  con <- get_con(read_only = TRUE)
+  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+
+  dplyr::tbl(con, "users") |>
+    dplyr::collect()
+
+}

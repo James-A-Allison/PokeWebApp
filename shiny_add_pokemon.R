@@ -6,12 +6,13 @@ library(shiny)
 library(pokemonGoSim)
 library(DT)
 library(uuid)
+library(shinydashboard)
 
 files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
 
 lapply(files, source)
 
-user_id <- "0a08ee46-2663-4155-a535-22a93cd5a821"
+# user_id <- "0a08ee46-2663-4155-a535-22a93cd5a821"
 
 type_colours <- c(
   Normal   = "#A8A77A",
@@ -58,11 +59,33 @@ dust_status <- get_dust_status()
 #   # filter(Charge2 == "") %>%
 #   mutate(Charge2 = if_else(Charge2 == "", NA_character_, Charge2))
 
-ui <- fluidPage(
-  titlePanel("Pokémon GO CP / IV Finder"),
+ui <- dashboardPage(
+    dashboardHeader(title = "Roster Builder",
+      tags$li(
+        class = "dropdown",
+        tags$a(
+          href = "#",
+          class = "dropdown-toggle",
+          `data-toggle` = "dropdown",
+          tags$img(src = "avatar.png", class = "user-image", height = "25px"),
+          span("James", class = "hidden-xs")
+        ),
+        tags$ul(
+          class = "dropdown-menu",
+          tags$li(
+          style = "padding:10px;",
+            selectInput(
+              "active_user",
+              NULL,
+              choices = c("Account A", "Account B", "Account C")
+            )
+          )
+        )
+      )
+  ),
 
-  sidebarLayout(
-    sidebarPanel(
+  dashboardSidebar(
+    # sidebarPanel(
       selectInput(
         "pokemon",
         "Pokémon",
@@ -94,14 +117,14 @@ ui <- fluidPage(
       numericInput("def_iv", "Defence IV (optional)", value = NA, min = 0, max = 15),
       numericInput("hp_iv", "HP IV (optional)", value = NA, min = 0, max = 15),
 
-      actionButton("run", "Find IVs", class = "btn-primary"),
+      actionButton("run", "Find IVs", class = "btn-primary")
 
-      h4("Possible matches"),
+      # h4("Possible matches"),
 
 
     ),
 
-    mainPanel(
+    dashboardBody(
       dataTableOutput("iv_results"),
       actionButton("add_new", "Add Pokemon", class = "btn-primary"),
       selectInput("filter_pokemon", "Pokemon",
@@ -110,36 +133,57 @@ ui <- fluidPage(
       actionButton("remove_pokemon", "Remove Pokemon", class = "btn-primary"),
       plotOutput("level_dotplot"),
       dataTableOutput("attacker_type_summaries"),
-      dataTableOutput("pokemon_summaries")
+      dataTableOutput("pokemon_summaries"),
+      tags$script(HTML("
+          $(document).on('click', '.dropdown-menu', function (e) {
+          e.stopPropagation();
+          });
+        "))
     )
   )
-)
+
 
 server <- function(input, output, session) {
-  
-    con <- get_con()
+  refresh_user_pokemon <- reactiveVal(0)
+  con <- get_con()
 
   session$onSessionEnded(function() {
     DBI::dbDisconnect(con, shutdown = FALSE)
   })
 
-  user_table <- reactiveVal({
+  users <- get_users()
+
+  active_user <- reactiveVal(NULL)
+
+  updateSelectInput(
+    session,
+    "active_user",
+    choices = setNames(users$user_id, users$username)
+  )
+
+  observeEvent(input$active_user, {
+    active_user(input$active_user)
+  })
+
+  user_table <- reactive({
     # browser()
-  get_user_pokemon_enriched(user_id #session$user$id
-    ) %>%
-  select(
-    pokemon_instance_id,
-    Pokemon,
-    `Dust Status` = dust_status,
-   `Can Mega Evolve` = can_mega_evolve,
-    `Can Dynamax` = can_dynamax,
-    `Fast Move` = fast_move,
-    Charge1,
-    Charge2,
-    Level, 
-    `Attack IV` = attack_iv, 
-    `Defence IV` = defence_iv, 
-    `HP IV` = hp_iv)
+  refresh_user_pokemon() 
+   user_id <- req(active_user())
+
+  get_user_pokemon_enriched(user_id) %>%
+    select(
+      pokemon_instance_id,
+      Pokemon,
+      `Dust Status` = dust_status,
+      `Can Mega Evolve` = can_mega_evolve,
+      `Can Dynamax` = can_dynamax,
+      `Fast Move` = fast_move,
+      Charge1,
+      Charge2,
+      Level, 
+      `Attack IV` = attack_iv, 
+      `Defence IV` = defence_iv, 
+      `HP IV` = hp_iv)
 })
   
 observeEvent(input$pokemon, {
@@ -277,6 +321,7 @@ observeEvent(input$pokemon, {
 
   observeEvent(input$add_new, {
     req(input$iv_results_rows_selected)
+    user_id <- req(active_user())
     # browser()
     selected_index <- input$iv_results_rows_selected
 
@@ -313,28 +358,30 @@ observeEvent(input$pokemon, {
     
     add_user_pokemon(new_row)
     
-    updated <- get_user_pokemon_enriched(user_id #session$user$id
-    ) %>%
-  select(
-    pokemon_instance_id,
-    Pokemon,
-    `Dust Status` = dust_status,
-   `Can Mega Evolve` = can_mega_evolve,
-    `Can Dynamax` = can_dynamax,
-    `Fast Move` = fast_move,
-    Charge1,
-    Charge2,
-    Level, 
-    `Attack IV` = attack_iv, 
-    `Defence IV` = defence_iv, 
-    `HP IV` = hp_iv)
+    # updated <- get_user_pokemon_enriched(user_id) %>%
+    #   select(
+    #     pokemon_instance_id,
+    #     Pokemon,
+    #     `Dust Status` = dust_status,
+    #     `Can Mega Evolve` = can_mega_evolve,
+    #     `Can Dynamax` = can_dynamax,
+    #     `Fast Move` = fast_move,
+    #     Charge1,
+    #     Charge2,
+    #     Level, 
+    #     `Attack IV` = attack_iv, 
+    #     `Defence IV` = defence_iv, 
+    #     `HP IV` = hp_iv)
 
     # print(new_row)
     # saveRDS(updated, "data/user_pokemon.RDS")
-    user_table(updated)
+    # user_table(updated)
+
+    refresh_user_pokemon(refresh_user_pokemon() + 1)
   })
 
     observeEvent(input$remove_pokemon, {
+      user_id <- req(active_user())
     req(input$user_pokemon_rows_selected)
     # browser()
     # current <- data$pokemon_moves %>%
@@ -350,23 +397,23 @@ observeEvent(input$pokemon, {
     
     # saveRDS(updated, "data/user_pokemon.RDS")
       
-    updated <- get_user_pokemon_enriched(user_id #session$user$id
-    ) %>%
-      select(
-            pokemon_instance_id,
-            Pokemon,
-            `Dust Status` = dust_status,
-            `Can Mega Evolve` = can_mega_evolve,
-            `Can Dynamax` = can_dynamax,
-            `Fast Move` = fast_move,
-            Charge1,
-            Charge2,
-            Level, 
-            `Attack IV` = attack_iv, 
-            `Defence IV` = defence_iv, 
-            `HP IV` = hp_iv)
+    # updated <- get_user_pokemon_enriched(user_id) %>%
+    #   select(
+    #         pokemon_instance_id,
+    #         Pokemon,
+    #         `Dust Status` = dust_status,
+    #         `Can Mega Evolve` = can_mega_evolve,
+    #         `Can Dynamax` = can_dynamax,
+    #         `Fast Move` = fast_move,
+    #         Charge1,
+    #         Charge2,
+    #         Level, 
+    #         `Attack IV` = attack_iv, 
+    #         `Defence IV` = defence_iv, 
+    #         `HP IV` = hp_iv)
       
-    user_table(updated)
+    # user_table(updated)
+    refresh_user_pokemon(refresh_user_pokemon() + 1)
     })
   
   # output$level_dotplot <- renderPlot({
