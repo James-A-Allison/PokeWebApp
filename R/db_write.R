@@ -6,3 +6,12 @@ add_user_pokemon <- function(df) {
   DBI::dbAppendTable(con, "user_pokemon", df)
 
 }
+
+add_user_battle_results <- function(df) {
+
+  con <- get_con()
+  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+
+  DBI::dbAppendTable(con, "user_battle_results", df)
+
+}

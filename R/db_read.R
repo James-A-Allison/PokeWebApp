@@ -20,6 +20,17 @@ get_user_pokemon_enriched <- function(user_id) {
 
 }
 
+get_user_pokemon_to_sim <- function(user_id) {
+
+  con <- get_con(read_only = TRUE)
+  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+
+  dplyr::tbl(con, "user_pokemon_to_sim") |>
+    dplyr::filter(user_id == !!user_id) |>
+    dplyr::collect()
+
+}
+
 get_pokemon_id <- function() {
 
   con <- get_con(read_only = TRUE)
@@ -127,10 +138,6 @@ get_weather <- function() {
 
   dplyr::tbl(con, "weather") |>
     dplyr::collect()
-
-}
-
-user_pokemon_enriched <- function() {
 
 }
 

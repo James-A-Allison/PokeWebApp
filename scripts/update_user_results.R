@@ -18,7 +18,13 @@ options(future.globals.maxSize= 891289600)
 #   cpm = c(0.7903, 0.7903, 0.7903)
 # )
 
-base_stats <- readRDS("data/base_stats.rds") %>%
+user_id <- "0a08ee46-2663-4155-a535-22a93cd5a821"
+
+files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
+
+lapply(files, source)
+
+base_stats <- get_base_stats() %>%
   select(
     pokemon_id = name,
     name,
@@ -30,14 +36,14 @@ base_stats <- readRDS("data/base_stats.rds") %>%
     type2 = `Type 2`
   )
 
-pokemon_moves <- readRDS("data/pokemon_moves.rds")
-moves <- readRDS("data/moves.rds")
-# weather_boosts <- readRDS("data/weather.rds")
+# pokemon_moves <- readRDS("data/pokemon_moves.rds")
+# moves <- readRDS("data/moves.rds")
+# # weather_boosts <- readRDS("data/weather.rds")
 
-pokemon_ids <- readRDS("data/pokemon_ids.rds")
-move_ids <- readRDS("data/move_ids.rds")
+# pokemon_ids <- readRDS("data/pokemon_ids.rds")
+# move_ids <- readRDS("data/move_ids.rds")
 
-mega_table <- readRDS("data/mega_table.RDS")
+# mega_table <- readRDS("data/mega_table.RDS")
 # type_effectiveness <- readRDS("data/type_effectiveness.RDS") 
 # level_multipliers <- readRDS("data/levels.rds") %>%
 #   select(level = `Level`, cpm = `CP Multiplier`)
@@ -45,48 +51,16 @@ mega_table <- readRDS("data/mega_table.RDS")
 
 ## Bosses
 
-raid_bosses <- readRDS("data/base_stats.rds") %>%
+raid_bosses <- get_base_stats() %>%
   # filter(`Raid Boss Tier` > 3) %>%
   filter(`Raid Boss Tier` > 3) %>%
   select(Pokemon = name, tier = `Raid Boss Tier`) %>%
   distinct() %>%
   left_join(raid_boss_tiers)
 
-boss_move_combinations <- inner_join(
-  pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
-    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    filter(legacy == "No") %>%
-    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
-    select(Pokemon, fast_move = `Move Name`),
+boss_move_combinations <- get_boss_move_combinations()
 
-  pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
-    left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    filter(legacy == "No") %>%
-    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
-    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
-)
-
-moves <- moves %>%
-      mutate(
-        energy_delta = (`Energy Gain` * 1) + (`Energy Cost` * -1),
-        duration_ms = Duration * 1000,
-        category = case_when(
-          `Move Type` == "Fast" ~ "fast_move",
-          `Move Type` == "Charge" ~ "charge_move"
-        )
-      ) %>%
-  select(
-        move_id = `Move Name`,
-        name = `Move Name`,
-        category,
-        power = Power,
-        energy_delta,
-        duration_ms,
-        type = Category)
+moves <- get_moves_formatted()
 
 bosses <- boss_move_combinations %>%
   inner_join(raid_bosses) %>%
@@ -103,44 +77,44 @@ bosses <- boss_move_combinations %>%
 
 ## Users
 
-existing_sims <- readRDS("data/results_summary.RDS")
+# existing_sims <- readRDS("data/results_summary.RDS")
 
-user_pokemon <- readRDS("data/user_pokemon.rds") %>%
-  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
-  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
-  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
-  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid,
+user_pokemon <- get_user_pokemon_to_sim(user_id) %>%
+  mutate(shadow = if_else(dust_status == "Shadow", TRUE, FALSE)) %>%
+  mutate(attack_iv = if_else(is.na(attack_iv), 0, attack_iv)) %>%
+  mutate(defence_iv  = if_else(is.na(defence_iv ), 0, defence_iv )) %>%
+  mutate(hp_iv  = if_else(is.na(hp_iv ), 0, hp_iv )) %>%
+  select(pokemon_instance_id,
         pokemon_id = Pokemon,
         level = `Level`,
-        iv_atk = `Attack IV`,
-        iv_def = `Defence IV`,
-        iv_sta = `HP IV`,
+        iv_atk = attack_iv,
+        iv_def = defence_iv ,
+        iv_sta = hp_iv ,
         shadow,
-        fast_move_id = `Fast Move`,
+        fast_move_id = fast_move,
         charged_move_id = `Charge1`,
         Charge2)
 
-user_pokemon <- readRDS("data/user_pokemon.rds") %>%
-  filter(`Can Mega Evolve` == "Yes") %>%
+user_pokemon <- get_user_pokemon_enriched(user_id) %>%
+  filter(can_mega_evolve == "Yes") %>%
   rename(base_name = Pokemon) %>%
   inner_join(mega_table) %>%
   select(-c(`pokedex number`, base_name)) %>%
   rename(Pokemon = Mega_name) %>%
-  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
-  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
-  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
-  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid,
+  mutate(shadow = if_else(dust_status == "Shadow", TRUE, FALSE)) %>%
+  mutate(attack_iv = if_else(is.na(attack_iv), 0, attack_iv)) %>%
+  mutate(defence_iv  = if_else(is.na(defence_iv ), 0, defence_iv )) %>%
+  mutate(hp_iv  = if_else(is.na(hp_iv ), 0, hp_iv )) %>%
+  select(pokemon_instance_id,
         pokemon_id = Pokemon,
         level = `Level`,
-        iv_atk = `Attack IV`,
-        iv_def = `Defence IV`,
-        iv_sta = `HP IV`,
+        iv_atk = attack_iv,
+        iv_def = defence_iv ,
+        iv_sta = hp_iv ,
         shadow,
-        fast_move_id = `Fast Move`,
+        fast_move_id = fast_move,
         charged_move_id = `Charge1`,
-      Charge2) %>%
+        Charge2) %>%
   bind_rows(user_pokemon)
 
 user_pokemon <- bind_rows(user_pokemon %>%
@@ -152,23 +126,23 @@ user_pokemon <- bind_rows(user_pokemon %>%
     # filter(is.na(Charge2)) %>%
     select(-Charge2))
 
-existing_sims <- setdiff(existing_sims %>%
-  select(pokemon_id, level, fast_move_id, charged_move_id, shadow) %>%
-  distinct(),
+# existing_sims <- setdiff(existing_sims %>%
+#   select(pokemon_id, level, fast_move_id, charged_move_id, shadow) %>%
+#   distinct(),
 
-user_pokemon %>%
-  select(pokemon_id, level, fast_move_id, charged_move_id, shadow) %>%
-  distinct()) %>%
-  anti_join(existing_sims, .)
+# user_pokemon %>%
+#   select(pokemon_id, level, fast_move_id, charged_move_id, shadow) %>%
+#   distinct()) %>%
+#   anti_join(existing_sims, .)
 
-saveRDS(existing_sims, "data/results_summary.RDS")
+# saveRDS(existing_sims, "data/results_summary.RDS")
 
 
 new_pokemon <- user_pokemon %>%
-  anti_join(
-    existing_sims %>% 
-      select(pokemon_id, level, fast_move_id, charged_move_id, shadow) %>%
-      distinct()) %>%
+  # anti_join(
+  #   existing_sims %>% 
+  #     select(pokemon_id, level, fast_move_id, charged_move_id, shadow) %>%
+  #     distinct()) %>%
   # rename(attacker_fast_move = fast_move,
         #  attacker_charge_move = charge_move) %>%
   # slice(1:1000) %>%
@@ -188,7 +162,7 @@ new_pokemon <- user_pokemon %>%
   ungroup() %>%
   mutate(weather = "Extreme")
 
-rm(existing_sims)
+# rm(existing_sims)
 
 sim_grid <- tidyr::crossing(
   new_pokemon,
@@ -210,7 +184,7 @@ with_progress({
 
       p()
 
-      sim_grid %>%
+      user_result <- sim_grid %>%
         slice(i) %>%
         mutate(sim = map2(
           attacker,
@@ -220,39 +194,70 @@ with_progress({
               boss       = .y,
               weather    = weather,
               friendship = "best"
-            )
-        ))
+            ))) %>%
+        mutate(
+          dps    = map_dbl(sim, "dps"),
+          damage = map_dbl(sim, "damage_done"),
+          time   = map_dbl(sim, "time"),
+          weather = "Extreme",
+          friendship = "best",
+          user_id = user_id) %>%
+        select(user_id,
+              friendship,
+              pokemon_instance_id,
+              pokemon_name = pokemon_id,
+              raid_boss = Pokemon,
+              level,
+              fast_move_id,
+              charged_move_id,
+              boss_fast_move_id = fast_move,
+              boss_charged_move_id = charge_move,
+              dps,
+              damage,
+              time,
+              weather,
+              raid_tier = tier,shadow)
+      # add_user_battle_results(user_result) 
     }
     , .options = furrr_options(packages = "pokemonGoSim")) %>%
     list_rbind()
 
 })
 
-existing_sims <- readRDS("data/results_summary.RDS")
+# existing_sims <- readRDS("data/results_summary.RDS")
 
-results_summary <- sim_list %>%
-  mutate(
-    dps    = map_dbl(sim, "dps"),
-    damage = map_dbl(sim, "damage_done"),
-    time   = map_dbl(sim, "time"),
-    weather = "Extreme"
-  ) %>%
-  select(
-    uuid,
-    pokemon_id,
-    raid_boss = Pokemon,
-    level,
-    fast_move_id,
-    charged_move_id,
-    boss_fast_move_id = fast_move,
-    boss_charged_move_id = charge_move,
-    dps,
-    damage,
-    time,
-    weather,
-    tier,
-    shadow
-  ) %>%
-    bind_rows(existing_sims)
+# results_summary <- sim_list %>%
+#   mutate(
+#     dps    = map_dbl(sim, "dps"),
+#     damage = map_dbl(sim, "damage_done"),
+#     time   = map_dbl(sim, "time"),
+#     weather = "Extreme",
+#     friendship = "best",
+#     user_id = user_id
+#   ) %>%
+#   select(
+#     user_id,
+#     friendship,
+#     pokemon_instance_id,
+#     pokemon_name = pokemon_id,
+#     raid_boss = Pokemon,
+#     level,
+#     fast_move_id,
+#     charged_move_id,
+#     boss_fast_move_id = fast_move,
+#     boss_charged_move_id = charge_move,
+#     dps,
+#     damage,
+#     time,
+#     weather,
+#     raid_tier = tier,
+#     shadow
+#    ) # %>%
+#   #   bind_rows(existing_sims)
 
-saveRDS(results_summary, "data/results_summary.RDS")
+# # saveRDS(results_summary, "data/results_summary.RDS")
+
+# con <- DBI::dbConnect(duckdb::duckdb(), "data/pokemon.db")
+
+add_user_battle_results(sim_list)
+# DBI::dbDisconnect(con, shutdown = TRUE)
