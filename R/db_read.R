@@ -160,3 +160,15 @@ get_users <- function() {
     dplyr::collect()
 
 }
+
+get_user_battle_results <- function(user_id) {
+
+  con <- get_con(read_only = TRUE)
+  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+
+  dplyr::tbl(con, "user_battle_results") |>
+    dplyr::filter(user_id == !!user_id) |>
+    dplyr::collect()
+
+}
+
