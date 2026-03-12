@@ -66,7 +66,8 @@ ui <- dashboardPage(
   dashboardSidebar(),
   dashboardBody(
     selectInput("raid_boss", "Select a raid boss: ", choices = upcoming_raids$raid_boss),
-    selectInput("raid_tier", "Select a raid tier: ", choices = sort(unique(upcoming_raids$tier))),
+    selectInput("raid_tier", "Select a raid tier: ", choices = c(4:6)),
+    selectInput("battle_party_size", "Top 6 or 12 Pokemon: ", choices = c(6,12)),
     tableOutput("user_pokemon"),
     tableOutput("user_mega_pokemon"),
     tableOutput("best_counters"),
@@ -160,7 +161,7 @@ server <- function(input, output, session) {
       mutate(dps = damage / time) %>%
       ungroup %>%
       arrange(desc(dps)) %>%
-      top_n(n = 6, wt = dps)
+      top_n(n = as.numeric(input$battle_party_size), wt = dps)
   })
 
     output$best_mega_counters <- renderTable({
@@ -186,15 +187,18 @@ server <- function(input, output, session) {
     user_battle_results() %>%
       filter(raid_boss == input$raid_boss,
              !grepl("Mega |Primal", pokemon_name)) %>%
-      group_by(pokemon_name, raid_boss, level, fast_move_id, charged_move_id) %>%
+      group_by(pokemon_name, pokemon_instance_id, level, fast_move_id, charged_move_id) %>%
       summarise(damage = sum(damage), time = sum(time)) %>%
       mutate(dps = damage / time) %>%
-      ungroup %>%
+      group_by(pokemon_instance_id) %>%
+      top_n(n = 1, wt = dps) %>%
+      ungroup() %>%
+      select(-pokemon_instance_id) %>%
       arrange(desc(dps)) %>%
-      top_n(n = 6, wt = dps)
+      top_n(n = as.numeric(input$battle_party_size), wt = dps)
   })
 
-    output$user_mega_pokemon <- renderTable({
+  output$user_mega_pokemon <- renderTable({
     req(input$raid_boss)
     # browser()
 
