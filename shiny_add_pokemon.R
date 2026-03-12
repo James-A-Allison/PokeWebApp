@@ -8,6 +8,8 @@ library(DT)
 library(uuid)
 library(shinydashboard)
 
+# options(shiny.autoreload = TRUE)
+
 files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
 
 lapply(files, source)
@@ -35,9 +37,16 @@ type_colours <- c(
   Fairy    = "#D685AD"
 )
 
+types <- c("Normal", "Fire", "Water", "Electric", "Grass", "Ice",
+  "Fighting", "Poison", "Ground", "Flying", "Psychic", "Bug",
+"Rock", "Ghost", "Dragon", "Dark", "Steel", "Fairy")
+
 pokemon_id <- get_pokemon_id()
 
-base_stats <- get_base_stats() 
+base_stats <- get_base_stats()
+
+pokemon_types <- base_stats %>%
+  select(Pokemon = name, `Type 1`, `Type 2`)
 
 poke_types <- base_stats %>% select(`Type 1`) %>% distinct() %>% pull()
 
@@ -125,15 +134,69 @@ ui <- dashboardPage(
     ),
 
     dashboardBody(
-      dataTableOutput("iv_results"),
-      actionButton("add_new", "Add Pokemon", class = "btn-primary"),
-      selectInput("filter_pokemon", "Pokemon",
-            choices = c("All", sort(unique(user_move_combinations$Pokemon)))),
-      dataTableOutput("user_pokemon"),
-      actionButton("remove_pokemon", "Remove Pokemon", class = "btn-primary"),
-      plotOutput("level_dotplot"),
-      dataTableOutput("attacker_type_summaries"),
-      dataTableOutput("pokemon_summaries"),
+      fluidRow(box(title = "Matching IVs", dataTableOutput("iv_results"), width = 12)),
+      fluidRow(box(actionButton("add_new", "Add Pokemon to Roster", class = "btn-primary"), width = 12 )),
+      fluidRow(
+        box(title = "Filter existing Roster",
+          width = 12,
+          div(
+            style = "display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;",
+            
+            div(style = "width:160px;",
+                selectInput(
+                  "filter_pokemon", "Pokemon",
+                  choices = c("All", sort(unique(user_move_combinations$Pokemon))),
+                  selectize = FALSE
+                )
+            ),
+            
+            div(style = "width:120px;",
+                selectInput(
+                  "filter_pokemon_type1", "Type 1",
+                  choices = c("All", types),
+                  selectize = FALSE
+                )
+            ),
+            
+            div(style = "width:120px;",
+                selectInput(
+                  "filter_pokemon_type2", "Type 2",
+                  choices = c("All", types),
+                  selectize = FALSE
+                )
+            ),
+            
+            div(style = "width:120px;",
+                selectInput(
+                  "filter_attack_type1", "Attack",
+                  choices = c("All", types),
+                  selectize = FALSE
+                )
+            ),
+            
+            div(style = "width:120px;",
+                selectInput(
+                  "filter_can_mega", "Mega",
+                  choices = c("All","Yes","No"),
+                  selectize = FALSE
+                )
+            ),
+            
+            div(style = "width:120px;",
+                selectInput(
+                  "filter_can_dynamax", "Dynamax",
+                  choices = c("All","Yes","No"),
+                  selectize = FALSE
+                )
+            )
+          )
+        )
+      ),
+      fluidRow(box(title = "Current Roster", dataTableOutput("user_pokemon"), width = 12)),
+      fluidRow(box(actionButton("remove_pokemon", "Remove Pokemon", class = "btn-primary") , width = 12)),
+      # plotOutput("level_dotplot"),
+      # dataTableOutput("attacker_type_summaries"),
+      # dataTableOutput("pokemon_summaries"),
       tags$script(HTML("
           $(document).on('click', '.dropdown-menu', function (e) {
           e.stopPropagation();
@@ -249,10 +312,44 @@ observeEvent(input$pokemon, {
     df <- df %>%
       filter(Pokemon == input$filter_pokemon)
   }
-
   
+  if (!is.null(input$filter_pokemon_type1) && input$filter_pokemon_type1 != "All") {
+    df <- pokemon_types %>%
+      filter(`Type 1` == input$filter_pokemon_type1 | `Type 2` == input$filter_pokemon_type1) %>%
+      select(Pokemon) %>%
+      inner_join(df)
+  }
+
+  if (!is.null(input$filter_pokemon_type2) && input$filter_pokemon_type2 != "All") {
+    df <- pokemon_types %>%
+      filter(`Type 1` == input$filter_pokemon_type2 | `Type 2` == input$filter_pokemon_type2) %>%
+      select(Pokemon) %>%
+      inner_join(df)
+  }
+    
+  if (!is.null(input$filter_attack_type1) && input$filter_attack_type1 != "All") {
+    filtered_moves <- moves %>%
+      filter(type == input$filter_attack_type1)
+
+    df <- df %>%
+      filter(`Fast Move` %in% filtered_moves$name |
+              `Charge1` %in% filtered_moves$name |
+        `Charge2` %in% filtered_moves$name
+            )
+  }
+    
+  if (!is.null(input$filter_can_mega) && input$filter_can_mega != "All") {
+    df <- df %>%
+      filter(`Can Mega Evolve` == input$filter_can_mega)
+  }
+  
+  if (!is.null(input$filter_can_dynamax) && input$filter_can_dynamax != "All") {
+    df <- df %>%
+      filter(`Can Dynamax` == input$filter_can_dynamax)
+  }
+    
   df
-})
+  })
 
   iv_results_df <- eventReactive(input$run, {
 
