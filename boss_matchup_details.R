@@ -65,19 +65,56 @@ ui <- dashboardPage(
   ),
   dashboardSidebar(),
   dashboardBody(
-    selectInput("raid_boss", "Select a raid boss: ", choices = upcoming_raids$raid_boss),
-    selectInput("raid_tier", "Select a raid tier: ", choices = c(4:6)),
-    selectInput("battle_party_size", "Top 6 or 12 Pokemon: ", choices = c(6,12)),
-    tableOutput("user_pokemon"),
-    tableOutput("user_mega_pokemon"),
-    tableOutput("best_counters"),
-    tableOutput("best_mega_counters"),
-    radioButtons(
-      "counter_level",
-      "What level are the counters? ",
-      choices = hypo_available_levels,
-      selected = min(hypo_available_levels)
+    fluidRow(
+      box(
+        width = 12,
+        div(
+          style = "display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;",
+          
+          div(style = "width:220px;",
+              selectInput(
+                "raid_boss",
+                "Raid Boss",
+                choices = upcoming_raids$raid_boss,
+                selectize = FALSE
+              )
+          ),
+          
+          div(style = "width:160px;",
+              selectInput(
+                "raid_tier",
+                "Tier",
+                choices = 4:6,
+                selectize = FALSE
+              )
+          ),
+          
+          div(style = "width:200px;",
+              selectInput(
+                "battle_party_size",
+                "Party Size",
+                choices = c(6, 12),
+                selectize = FALSE
+              )
+          )
+        )
+      )
     ),
+    fluidRow(box(width = 6, title = "Your Best Counters", tableOutput("user_pokemon")),
+            box(width = 6, title = "Your Best Mega-Evolved Counters",tableOutput("user_mega_pokemon"))),
+    fluidRow(box(width = 6, title = "Best Counters", 
+              div(
+                style = "margin-bottom:10px;",
+             radioButtons(
+                "counter_level",
+                "What level are the counters? ",
+                choices = hypo_available_levels,
+                selected = min(hypo_available_levels),
+                inline = TRUE
+            )),    
+            tableOutput("best_counters")),
+            box(witdh = 6, title = "Best Mega-Evolved Counters", tableOutput("best_mega_counters"))),
+
     tags$script(HTML("
           $(document).on('click', '.dropdown-menu', function (e) {
           e.stopPropagation();
