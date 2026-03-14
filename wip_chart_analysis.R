@@ -139,24 +139,65 @@ base_stats %>%
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL)
 
+
+
 results_summary %>%
-  filter(raid_tier == 5) %>%
-  left_join(base_stats %>% select(type = `Type 1`, raid_boss = name)) %>%
+  # filter(raid_tier == 5) %>%
+  left_join(base_stats %>% select(raid_boss = name, `Type 1`, `Type 2`) %>%
+  pivot_longer(cols = -raid_boss, values_to = "type") %>%
+  select(-name)) %>%
   filter(!grepl("Mega |Primal ", pokemon_name)) %>%
-  group_by(pokemon_instance_id, pokemon_name, fast_move_id, charged_move_id, raid_boss, type) %>%
+  group_by(pokemon_instance_id, pokemon_name, fast_move_id, charged_move_id, raid_boss, type, raid_tier) %>%
   summarise(damage = mean(damage),
             time = mean(time)) %>%
   mutate(dps = damage / time) %>%
-  group_by(pokemon_instance_id, pokemon_name, raid_boss) %>%
+  group_by(pokemon_instance_id, pokemon_name, raid_boss, raid_tier) %>%
   top_n(n = 1, wt = dps) %>%
   group_by(raid_boss) %>%
   top_n(n = 6, dps) %>%
-  mutate(avg_dps = mean(dps)) %>%
-  ggplot(aes(y = reorder(raid_boss, avg_dps), x = dps, fill = type, color = type)) +
-  geom_violin() +
+  group_by(raid_boss, type, raid_tier) %>%
+  summarise(damage = mean(damage),
+            time = mean(time)) %>%
+  group_by(type, raid_tier) %>%
+  summarise(damage = mean(damage),
+            time = mean(time)) %>%
+  mutate(dps = damage / time) %>%
+  mutate(type = factor(type, levels = rev(names(type_colours)))) %>%
+  ggplot(aes(x = type, y = dps, fill = type, color = type)) +
+  facet_wrap(facets = vars(raid_tier)) +
+  geom_col(stat = "identity") +
+  coord_flip() +
+  scale_x_discrete(drop = FALSE) +
   scale_fill_manual(values = type_colours) +
   scale_color_manual(values = type_colours) +
   theme(legend.position = "none") +
-  facet_wrap(facets = vars(type))
+  labs(x = NULL)
 
+results_summary %>%
+  filter(raid_tier == 5) %>%
+  left_join(base_stats %>% select(pokemon_name = name, type = `Type 1`)) %>%
+  filter(!grepl("Mega |Primal ", pokemon_name)) %>%
+  group_by(pokemon_instance_id, pokemon_name, fast_move_id, charged_move_id, raid_boss, type, raid_tier) %>%
+  summarise(damage = mean(damage),
+            time = mean(time)) %>%
+  mutate(dps = damage / time) %>%
+  group_by(pokemon_instance_id, pokemon_name, raid_boss, raid_tier, type) %>%
+  top_n(n = 1, wt = dps) %>%
+  group_by(raid_boss) %>%
+  top_n(n = 6, dps) %>%
+  group_by(pokemon_instance_id, pokemon_name, type) %>%
+  summarise(`Bosses Countered` = n_distinct(raid_boss)) %>%
+  group_by(pokemon_name) %>%
+  mutate(pokemon_in_group = n_distinct(pokemon_instance_id)) %>%
+  arrange(desc(`Bosses Countered`)) %>%
+  mutate(display_name = if_else(pokemon_in_group > 1, paste(pokemon_name, row_number()), pokemon_name)) %>%
+  # select(display_name, `Bosses Countered`, type) %>%
+  # mutate(pokemon_name = forcats::fct_reorder(pokemon_name, `Bosses Countered`)) %>%
+  ggplot(aes(x = reorder(display_name, `Bosses Countered`),
+             y = `Bosses Countered`,
+            fill = type, color = type)) +
+  scale_fill_manual(values = type_colours) +
+  scale_color_manual(values = type_colours) +
+  geom_col(stat = "identity") +
+  coord_flip() 
 
