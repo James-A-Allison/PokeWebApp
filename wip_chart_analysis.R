@@ -115,3 +115,48 @@ user_table %>%
   theme(legend.position = "none") +
   labs(x = NULL, y = NULL)
 
+results_summary <- get_user_battle_results("0a08ee46-2663-4155-a535-22a93cd5a821")
+
+base_stats %>%
+  filter(`Raid Boss Tier` == 5) %>%
+  select(name, Defence_1 = `Type 1`, Defence_2 = `Type 2`) %>%
+  left_join(type_effectiveness) %>%
+  filter(`Damage Multiplier` > 1) %>%
+  select(name, `Damage Multiplier`, Attack) %>%
+  mutate(`Damage Multiplier` = if_else(`Damage Multiplier` == 1.6, "Single Weak", "Double Weak")) %>%
+  mutate(Attack = factor(Attack, levels = rev(names(type_colours)))) %>%
+  group_by(Attack, `Damage Multiplier`) %>%
+  summarise(Bosses = n_distinct(name)) %>%
+  # pivot_wider(names_from = `Damage Multiplier`, values_from = Bosses, values_fill = list(Bosses = 0 )) %>%
+  # arrange(desc(`Single Weak`)) 
+  ggplot(aes(x = Attack, y = Bosses, fill = Attack, color = Attack)) +
+  facet_wrap(facets = vars(`Damage Multiplier`)) +
+  geom_col(stat = "identity") +
+  coord_flip() +
+  scale_x_discrete(drop = FALSE) +
+  scale_fill_manual(values = type_colours) +
+  scale_color_manual(values = type_colours) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = NULL)
+
+results_summary %>%
+  filter(raid_tier == 5) %>%
+  left_join(base_stats %>% select(type = `Type 1`, raid_boss = name)) %>%
+  filter(!grepl("Mega |Primal ", pokemon_name)) %>%
+  group_by(pokemon_instance_id, pokemon_name, fast_move_id, charged_move_id, raid_boss, type) %>%
+  summarise(damage = mean(damage),
+            time = mean(time)) %>%
+  mutate(dps = damage / time) %>%
+  group_by(pokemon_instance_id, pokemon_name, raid_boss) %>%
+  top_n(n = 1, wt = dps) %>%
+  group_by(raid_boss) %>%
+  top_n(n = 6, dps) %>%
+  mutate(avg_dps = mean(dps)) %>%
+  ggplot(aes(y = reorder(raid_boss, avg_dps), x = dps, fill = type, color = type)) +
+  geom_violin() +
+  scale_fill_manual(values = type_colours) +
+  scale_color_manual(values = type_colours) +
+  theme(legend.position = "none") +
+  facet_wrap(facets = vars(type))
+
+
