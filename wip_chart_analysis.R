@@ -199,5 +199,6 @@ results_summary %>%
   scale_fill_manual(values = type_colours) +
   scale_color_manual(values = type_colours) +
   geom_col(stat = "identity") +
+  theme(legend.position = "none") +
   coord_flip() 
 

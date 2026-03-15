@@ -172,3 +172,12 @@ get_user_battle_results <- function(user_id) {
 
 }
 
+get_raw_pokemon_moves <- function() {
+
+  con <- get_con(read_only = TRUE)
+  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+
+  dplyr::tbl(con, "pokemon_moves") |>
+    dplyr::collect()
+
+}

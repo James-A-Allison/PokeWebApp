@@ -1,15 +1,18 @@
-library(googlesheets4)
+# library(googlesheets4)
 library(shiny)
 library(DT)
 library(dplyr)
-SHEET_ID <- "https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/"
+# SHEET_ID <- "https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/"
 
+files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
 
-pokemon <- readRDS("data/pokemon_ids.rds")
-moves <- readRDS("data/move_ids.rds")
-pokemon_moves <- readRDS("data/pokemon_moves.rds")
+lapply(files, source)
 
-base_data <- readRDS("data/base_stats.RDS") %>%
+pokemon <- get_pokemon_id()
+moves <- get_moves()
+pokemon_moves <- get_raw_pokemon_moves()
+
+base_data <- get_base_stats() %>%
   select(name, `Lv 40 CP`, Released) %>%
   filter(!is.na(`Lv 40 CP`),
           (Released == "Yes" | is.na(Released))
@@ -32,9 +35,9 @@ ui <- fluidPage(
 
       actionButton("remove_move", "Remove Selected Move"),
 
-      hr(),
+      # hr(),
 
-      actionButton("sync", "Sync to Google Sheets"),
+      # actionButton("sync", "Sync to Google Sheets"),
       
       hr(),
 
@@ -61,9 +64,9 @@ server <- function(input, output, session) {
   )
 
   refresh_data <- function() {
-    data$pokemon <- readRDS("data/pokemon_ids.rds")
-    data$moves <- readRDS("data/move_ids.rds")
-    data$pokemon_moves <- readRDS("data/pokemon_moves.rds")
+    data$pokemon <- get_pokemon_id()
+    data$moves <- get_moves()
+    data$pokemon_moves <- get_raw_pokemon_moves()
     # data$last_refresh <- Sys.time()
   }
 
@@ -183,40 +186,43 @@ output$current_moves <- DT::renderDataTable({
         legacy = if_else(input$legacy == TRUE, 'Yes', 'No')
       )
 
-    updated <- bind_rows(
-      data$pokemon_moves,
-      new_row) %>%
-      distinct()
+    # updated <- bind_rows(
+    #   data$pokemon_moves,
+    #   new_row) %>%
+    #   distinct()
 
     # print(new_row)
-    saveRDS(updated, "data/pokemon_moves.RDS")
+    add_pokemon_move(new_row)
+    # saveRDS(updated, "data/pokemon_moves.RDS")
     refresh_data()
   })
 
   # Remove move
   observeEvent(input$remove_move, {
     req(input$current_moves_rows_selected)
-
+    # browser()
     current <- data$pokemon_moves %>%
       filter(pokemon_id == input$pokemon)
 
     to_remove <- current[input$current_moves_rows_selected, ]
+    
+    remove_move(pokemon_id = to_remove$pokemon_id,
+                move_id = to_remove$move_id)
+    # updated <- anti_join(
+    #   data$pokemon_moves,
+    #   to_remove,
+    #   by = c("pokemon_id", "move_id", "legacy")
+    # )
 
-    updated <- anti_join(
-      data$pokemon_moves,
-      to_remove,
-      by = c("pokemon_id", "move_id", "legacy")
-    )
-
-    saveRDS(updated, "data/pokemon_moves.RDS")
+    # saveRDS(updated, "data/pokemon_moves.RDS")
     refresh_data()
   })
 
-    observeEvent(input$sync, { ## syncs back to Google Sheets
+  #   observeEvent(input$sync, { ## syncs back to Google Sheets
 
-    write_sheet(data$pokemon_moves, ss = SHEET_ID, sheet = "pokemon_moves")
-    refresh_data()
-  })
+  #   write_sheet(data$pokemon_moves, ss = SHEET_ID, sheet = "pokemon_moves")
+  #   refresh_data()
+  # })
 }
 
 shinyApp(ui, server)
