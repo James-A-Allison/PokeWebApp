@@ -1,64 +1,72 @@
 library(tidyverse)
+library(DBI)
 
-pokemon_moves <- readRDS("data/pokemon_moves.rds")
-moves <- readRDS("data/moves.rds")
+con <- dbConnect(duckdb::duckdb(), "data/pokemon.db")
+
+pokemon_moves <- DBI::dbReadTable(con, "pokemon_moves")
+moves <- DBI::dbReadTable(con, "move_stats")
 # weather_boosts <- readRDS("data/weather.rds")
 
-pokemon_ids <- readRDS("data/pokemon_ids.rds")
-move_ids <- readRDS("data/move_ids.rds")
+pokemon_ids <-  DBI::dbReadTable(con, "pokemon")
+move_ids <- DBI::dbReadTable(con, "moves")
 
 boss_move_combinations <- inner_join(
   pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(move_ids %>% rename(movename = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
+    select(Pokemon, movename, legacy) %>%
     filter(legacy == "No") %>%
-    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
-    select(Pokemon, fast_move = `Move Name`),
+    inner_join(moves %>% filter(movetype == "Fast"), relationship = "many-to-many") %>%
+    select(Pokemon, fast_move = movename),
 
   pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(move_ids %>% rename(movename = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
+    select(Pokemon, movename, legacy) %>%
     filter(legacy == "No") %>%
-    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
-    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
+    inner_join(moves %>% filter(movetype == "Charge"), relationship = "many-to-many") %>%
+    select(Pokemon, charge_move = movename), relationship = "many-to-many" 
 )
 
 available_move_combinations <- inner_join(
   pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(move_ids %>% rename(movename = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    inner_join(moves %>% filter(`Move Type` == "Fast"), relationship = "many-to-many") %>%
-    select(Pokemon, fast_move = `Move Name`),
+    select(Pokemon, movename, legacy) %>%
+    inner_join(moves %>% filter(movetype == "Fast"), relationship = "many-to-many") %>%
+    select(Pokemon, fast_move = movename),
 
   pokemon_moves %>%
-    left_join(move_ids %>% rename(`Move Name` = name)) %>%
+    left_join(move_ids %>% rename(movename = name)) %>%
     left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
-    select(Pokemon, `Move Name`, legacy) %>%
-    inner_join(moves %>% filter(`Move Type` == "Charge"), relationship = "many-to-many") %>%
-    select(Pokemon, charge_move = `Move Name`), relationship = "many-to-many" 
+    select(Pokemon, movename, legacy) %>%
+    inner_join(moves %>% filter(movetype == "Charge"), relationship = "many-to-many") %>%
+    select(Pokemon, charge_move = movename), relationship = "many-to-many" 
 )
 
 moves_formatted <- moves %>%
       mutate(
-        energy_delta = (`Energy Gain` * 1) + (`Energy Cost` * -1),
-        duration_ms = Duration * 1000,
+        energy_delta = (energygain * 1) + (energycost * -1),
+        duration_ms = duration * 1000,
         category = case_when(
-          `Move Type` == "Fast" ~ "fast_move",
-          `Move Type` == "Charge" ~ "charge_move"
+          movetype == "Fast" ~ "fast_move",
+          movetype == "Charge" ~ "charge_move"
         )
       ) %>%
   select(
-        move_id = `Move Name`,
-        name = `Move Name`,
+        move_id = movename,
+        name = movename,
         category,
-        power = Power,
+        power,
         energy_delta,
         duration_ms,
-        type = Category)
+        type = category)
 
-saveRDS(boss_move_combinations, "data/boss_move_combinations.RDS")
-saveRDS(available_move_combinations, "data/user_move_combinations.RDS")
-saveRDS(moves_formatted, "data/moves_formatted.RDS")
+# saveRDS(boss_move_combinations, "data/boss_move_combinations.RDS")
+# saveRDS(available_move_combinations, "data/user_move_combinations.RDS")
+# saveRDS(moves_formatted, "data/moves_formatted.RDS")
+
+dbWriteTable(con, "user_move_combinations", available_move_combinations, overwrite = TRUE)
+dbWriteTable(con, "boss_move_combinations", boss_move_combinations, overwrite = TRUE)
+dbWriteTable(con, "moves_formatted", moves_formatted, overwrite = TRUE)
+dbDisconnect(con, shutdown = FALSE)

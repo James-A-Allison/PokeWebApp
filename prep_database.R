@@ -192,3 +192,14 @@ dbWriteTable(
 
 dbDisconnect(con, shutdown = FALSE)
 
+
+
+dbWriteTable(
+  con,
+  "move_stats",
+  moves %>%
+  rename_with(~ str_remove_all(str_to_lower(.x), " ")),
+  overwrite = TRUE
+)
+
+dbDisconnect(con, shutdown = FALSE)
