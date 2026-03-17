@@ -111,15 +111,15 @@ get_moves_formatted <- function() {
 
 }
 
-get_type_effectiveness <- function() {
+# get_type_effectiveness_db <- function() {
 
-  con <- get_con(read_only = TRUE)
-  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+#   con <- get_con(read_only = TRUE)
+#   on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
 
-  dplyr::tbl(con, "type_effectiveness") |>
-    dplyr::collect()
+#   dplyr::tbl(con, "type_effectiveness") |>
+#     dplyr::collect()
 
-}
+# }
 
 get_user_move_combinations <- function() {
 

@@ -45,6 +45,7 @@ available_move_combinations <- inner_join(
 )
 
 moves_formatted <- moves %>%
+    rename(type = category) %>%
       mutate(
         energy_delta = (energygain * 1) + (energycost * -1),
         duration_ms = duration * 1000,
@@ -60,7 +61,7 @@ moves_formatted <- moves %>%
         power,
         energy_delta,
         duration_ms,
-        type = category)
+        type)
 
 # saveRDS(boss_move_combinations, "data/boss_move_combinations.RDS")
 # saveRDS(available_move_combinations, "data/user_move_combinations.RDS")
