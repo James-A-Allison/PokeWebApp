@@ -167,7 +167,8 @@ new_pokemon <- user_pokemon %>%
 sim_grid <- tidyr::crossing(
   new_pokemon,
   bosses)  %>%
-  mutate(weather = "Extreme")
+  mutate(weather = "Extreme") %>%
+  slice(1:300000)
 
 registerDoFuture()
 plan(multisession, workers = 10)  # or however many
@@ -193,7 +194,8 @@ with_progress({
               attacker   = .x,
               boss       = .y,
               weather    = weather,
-              friendship = "best"
+              friendship = "best",
+              party_size = 2
             ))) %>%
         mutate(
           dps    = map_dbl(sim, "dps"),
@@ -201,6 +203,7 @@ with_progress({
           time   = map_dbl(sim, "time"),
           weather = "Extreme",
           friendship = "best",
+          party_power = 2,
           user_id = user_id) %>%
         select(user_id,
               friendship,
@@ -216,7 +219,7 @@ with_progress({
               damage,
               time,
               weather,
-              raid_tier = tier,shadow)
+              raid_tier = tier,shadow, party_power)
       # add_user_battle_results(user_result) 
     }
     , .options = furrr_options(packages = "pokemonGoSim")) %>%

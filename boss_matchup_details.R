@@ -16,7 +16,7 @@ upcoming_raids <- get_calendar() %>%
   filter(To >= Sys.Date()) %>%
   select(raid_boss = `Raid Boss`, tier = Tier)
 
-hypotechical_matchups <- readRDS("data/hypotectical_matchups.RDS")
+# hypotechical_matchups <- readRDS("data/hypotectical_matchups.RDS")
 
 raid_boss_options <- c(
   upcoming_raids %>% select(raid_boss) %>% distinct %>% pull,
@@ -32,11 +32,11 @@ raid_boss_options <- c(
 #   results_summary %>% select(tier) %>% distinct %>% arrange(tier) %>% pull
 # )
 
-hypo_available_levels <- hypotechical_matchups %>%
-  select(level) %>%
-  distinct() %>%
-  arrange(level) %>%
-  pull
+# hypo_available_levels <- hypotechical_matchups %>%
+#   select(level) %>%
+#   distinct() %>%
+#   arrange(level) %>%
+#   pull
 
 
 ui <- dashboardPage(
@@ -108,8 +108,8 @@ ui <- dashboardPage(
              radioButtons(
                 "counter_level",
                 "What level are the counters? ",
-                choices = hypo_available_levels,
-                selected = min(hypo_available_levels),
+                choices = c(30, 40, 50),
+                selected = 30,
                 inline = TRUE
             )),    
             tableOutput("best_counters")),
@@ -189,11 +189,10 @@ server <- function(input, output, session) {
     req(input$raid_boss)
     # browser()
     
-    hypotechical_matchups %>%
-      filter(raid_boss == input$raid_boss, 
-        level == input$counter_level,
-      !grepl("Mega |Primal", pokemon_id)) %>%
-      group_by(pokemon_id, raid_boss, level, fast_move_id, charged_move_id) %>%
+    get_hypo_matchups(input$raid_boss, as.numeric(input$raid_tier)) %>%
+      filter(level == input$counter_level,
+      !grepl("Mega |Primal", pokemon_name)) %>%
+      group_by(pokemon_name, raid_boss, level, fast_move_id, charged_move_id) %>%
       summarise(damage = sum(damage), time = sum(time)) %>%
       mutate(dps = damage / time) %>%
       ungroup %>%
@@ -205,11 +204,10 @@ server <- function(input, output, session) {
     req(input$raid_boss)
     # browser()
 
-    hypotechical_matchups %>%
-      filter(raid_boss == input$raid_boss,
-         level == input$counter_level,
-          grepl("Mega |Primal", pokemon_id)) %>%
-      group_by(pokemon_id, raid_boss, level, fast_move_id, charged_move_id) %>%
+    get_hypo_matchups(input$raid_boss, as.numeric(input$raid_tier)) %>%
+      filter(level == input$counter_level,
+          grepl("Mega |Primal", pokemon_name)) %>%
+      group_by(pokemon_name, raid_boss, level, fast_move_id, charged_move_id) %>%
       summarise(damage = sum(damage), time = sum(time)) %>%
       mutate(dps = damage / time) %>%
       ungroup %>%

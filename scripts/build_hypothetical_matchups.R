@@ -10,6 +10,17 @@ library(DBI)
 options(progressr.enable = TRUE)
 options(future.globals.maxSize= 891289600)
 
+# friendship = c("best", "good", "great", "none", "ultra")
+# party_power = c(0,2,3,4)
+
+friendship = c("best")
+party_power = c(2)
+
+dm_bonus_tibble <- crossing(friendship, party_power) %>%
+  mutate(party_power = if_else(friendship == "none",0, party_power)) %>%
+  distinct()
+
+
 files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
 
 lapply(files, source)
@@ -32,11 +43,11 @@ upcoming_bosses <- get_calendar() %>%
 
 raid_bosses <- get_base_stats() %>%
   # filter(`Raid Boss Tier` > 3) %>%
-  filter(`Raid Boss Tier` > 3) %>%
+  filter(`Raid Boss Tier` > 4) %>%
   select(Pokemon = name, tier = `Raid Boss Tier`) %>%
   distinct() %>%
-  left_join(raid_boss_tiers) %>%
-  inner_join(upcoming_bosses %>% select(Pokemon = `Raid Boss`))
+  left_join(raid_boss_tiers) # %>%
+  # inner_join(upcoming_bosses %>% select(Pokemon = `Raid Boss`))
 
 boss_move_combinations <- get_boss_move_combinations()
 
@@ -57,8 +68,10 @@ bosses <- boss_move_combinations %>%
 user_move_combinations <- get_user_move_combinations()
 
 user_pokemon_to_run <- get_base_stats() %>%
-  filter(Class %in% c("Starter", "Mega",  "Legendary", "Pseudo-legendary",
- "Mega Legendary", "Mythical", "Ultra Beast", "Paradox Pokemon")) %>%
+  filter(`Lv 40 CP` > 3500) %>%
+  filter(`Type 1` == "Ground" | `Type 2` == "Ground") %>%
+#   filter(Class %in% c("Starter", "Mega",  "Legendary", "Pseudo-legendary",
+#  "Mega Legendary", "Mythical", "Ultra Beast", "Paradox Pokemon")) %>%
   select(Pokemon = name) %>%
   distinct()
 
@@ -94,7 +107,7 @@ hypo_pokemon <- user_move_combinations %>%
 
 sim_grid <- tidyr::crossing(
   hypo_pokemon,
-  bosses)
+  bosses,dm_bonus_tibble)
 
 con <- dbConnect(duckdb::duckdb(), "data/pokemon.db")
 existing_sims <-dbReadTable(con, "hypothetical_matchups") %>%
@@ -105,7 +118,7 @@ existing_sims <-dbReadTable(con, "hypothetical_matchups") %>%
 dbDisconnect(con, shutdown = FALSE)
 
 sim_grid <- anti_join(sim_grid, existing_sims) %>%
-  slice(1:300000)
+  slice(1:400000)
 
 rm(existing_sims)
 
@@ -133,14 +146,14 @@ with_progress({
               attacker   = .x,
               boss       = .y,
               weather    = weather,
-              friendship = "best"
+              friendship = friendship,
+              party_size = party_power 
             ))) %>%
         mutate(
           dps    = map_dbl(sim, "dps"),
           damage = map_dbl(sim, "damage_done"),
           time   = map_dbl(sim, "time"),
-          weather = "Extreme",
-          friendship = "best") %>%
+          weather = "Extreme") %>%
         select(
               friendship,
               pokemon_name = pokemon_id,
@@ -154,7 +167,7 @@ with_progress({
               damage,
               time,
               weather,
-              raid_tier = tier,shadow)
+              raid_tier = tier,shadow, party_power)
       # add_user_battle_results(user_result) 
     }
     , .options = furrr_options(packages = "pokemonGoSim")) %>%
@@ -164,5 +177,5 @@ with_progress({
 
 con <- dbConnect(duckdb::duckdb(), "data/pokemon.db")
 
-dbWriteTable(con, "hypothetical_matchups", sim_list %>% mutate(party_power = 2), append = TRUE)
+dbWriteTable(con, "hypothetical_matchups", sim_list, append = TRUE)
 dbDisconnect(con, shutdown = FALSE)

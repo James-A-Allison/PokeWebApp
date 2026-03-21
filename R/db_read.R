@@ -181,3 +181,17 @@ get_raw_pokemon_moves <- function() {
     dplyr::collect()
 
 }
+
+get_hypo_matchups <- function(raid_boss, tier, friendship = "best", party_power = 2) {
+    con <- get_con(read_only = TRUE)
+  on.exit(DBI::dbDisconnect(con, shutdown = FALSE))
+
+  dplyr::tbl(con, "hypothetical_matchups") |>
+    dplyr::filter(raid_boss == !!raid_boss,
+                  tier == !!tier,
+                  friendship == !!friendship,
+                  party_power == !!party_power
+              ) |>
+    dplyr::collect()
+}
+
