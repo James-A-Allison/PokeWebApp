@@ -1,9 +1,21 @@
 library(googlesheets4)
 library(tidyverse)
+library(DBI)
 wb <- "https://docs.google.com/spreadsheets/d/1cjTin49W2AkW9Z2ndJ59IDZ3o64FGtj2LhYrx-QoxHg/"
+
+con <- dbConnect(duckdb::duckdb(), "data/pokemon.db")
 
 base_stats <- read_sheet(wb,
                           sheet = "Base Stats")
+
+dbWriteTable(con, "base_stats", base_stats, overwrite = TRUE)
+
+calendar <- read_sheet(wb, sheet = "Calendar")
+dbWriteTable(con, "calendar", calendar, overwrite = TRUE)
+
+dbDisconnect(con, shutdown = FALSE)
+
+
 
 levels <- read_sheet(wb,
                     sheet = "Levels")
@@ -16,7 +28,6 @@ moves <- read_sheet(wb,
 
 pokemon_ids <- read_sheet(wb, sheet = "pokemon_ids")
 moves_ids <- read_sheet(wb, sheet = "move_ids")
-calendar <- read_sheet(wb, sheet = "Calendar")
 # pokemon_moves %>%
 #   left_join(moves_ids %>% rename(`Move Name` = name)) %>%
 #   left_join(pokemon_ids %>% rename(`Pokemon` = name)) %>%
