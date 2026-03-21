@@ -69,7 +69,7 @@ user_move_combinations <- get_user_move_combinations()
 
 user_pokemon_to_run <- get_base_stats() %>%
   filter(`Lv 40 CP` > 3500) %>%
-  filter(`Type 1` == "Ground" | `Type 2` == "Ground") %>%
+  filter(`Type 1` %in% c("Grass", "Electric", "Water") | `Type 2` %in% c("Grass", "Electric", "Water")) %>%
 #   filter(Class %in% c("Starter", "Mega",  "Legendary", "Pseudo-legendary",
 #  "Mega Legendary", "Mythical", "Ultra Beast", "Paradox Pokemon")) %>%
   select(Pokemon = name) %>%
@@ -118,7 +118,7 @@ existing_sims <-dbReadTable(con, "hypothetical_matchups") %>%
 dbDisconnect(con, shutdown = FALSE)
 
 sim_grid <- anti_join(sim_grid, existing_sims) %>%
-  slice(1:400000)
+  slice(1:100000)
 
 rm(existing_sims)
 
