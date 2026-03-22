@@ -118,7 +118,7 @@ existing_sims <-dbReadTable(con, "hypothetical_matchups") %>%
 dbDisconnect(con, shutdown = FALSE)
 
 sim_grid <- anti_join(sim_grid, existing_sims) %>%
-  slice(1:100000)
+  slice(1:200000)
 
 rm(existing_sims)
 
