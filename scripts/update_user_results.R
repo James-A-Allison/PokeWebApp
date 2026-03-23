@@ -18,7 +18,7 @@ options(future.globals.maxSize= 891289600)
 #   cpm = c(0.7903, 0.7903, 0.7903)
 # )
 
-user_id <- "0a08ee46-2663-4155-a535-22a93cd5a821"
+user_id <- "789eed8f-43fa-4730-b968-9d67ec1d18f3"
 
 files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
 
@@ -79,7 +79,7 @@ bosses <- boss_move_combinations %>%
 
 # existing_sims <- readRDS("data/results_summary.RDS")
 
-user_pokemon <- get_user_pokemon_to_sim(user_id) %>%
+user_pokemon <- get_user_pokemon_enriched(user_id) %>%
   mutate(shadow = if_else(dust_status == "Shadow", TRUE, FALSE)) %>%
   mutate(attack_iv = if_else(is.na(attack_iv), 0, attack_iv)) %>%
   mutate(defence_iv  = if_else(is.na(defence_iv ), 0, defence_iv )) %>%

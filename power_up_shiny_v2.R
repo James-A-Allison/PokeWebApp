@@ -9,29 +9,34 @@ library(pokemonGoSim)
 library(DT)
 library(shinycssloaders)
 
+files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
+
+lapply(files, source)
+
 handlers(global = TRUE)
 handlers("shiny")
 
 registerDoFuture()
 plan(multisession, workers = 10)  # or however many
 
-pokemon_moves <- readRDS("data/pokemon_moves.rds")
-moves <- readRDS("data/moves.rds")
-# weather_boosts <- readRDS("data/weather.rds")
+# pokemon_moves <- readRDS("data/pokemon_moves.rds")
+# moves <- readRDS("data/moves.rds")
+# # weather_boosts <- readRDS("data/weather.rds")
 
-pokemon_ids <- readRDS("data/pokemon_ids.rds")
-move_ids <- readRDS("data/move_ids.rds")
+# pokemon_ids <- readRDS("data/pokemon_ids.rds")
+# move_ids <- readRDS("data/move_ids.rds")
+user_id <- "789eed8f-43fa-4730-b968-9d67ec1d18f3"
+results_summary <- get_user_battle_results(user_id)
 
-results_summary <- readRDS("data/results_summary.RDS")
-upcoming_raids <- readRDS("data/calendar.RDS") %>%
+upcoming_raids <- get_calendar() %>%
   filter(To >= Sys.Date()) %>%
   select(raid_boss = `Raid Boss`, tier = Tier)
 
 raid_boss_tier <- c(
-  results_summary %>% select(tier) %>% distinct %>% arrange(tier) %>% pull
+  upcoming_raids %>% select(tier) %>% distinct %>% arrange(tier) %>% pull
 )
 
-dust_table <-readRDS("data/levels.RDS") %>%
+dust_table <- get_levels() %>%
   select(level = Level,
         normal = `Marginal Dust`,
         eternatus = `Marginal Dust`,
@@ -40,7 +45,7 @@ dust_table <-readRDS("data/levels.RDS") %>%
         purified_dust = `Marginal Dust Purified`
       )
 
-base_stats <- readRDS("data/base_stats.rds") %>%
+base_stats <- get_base_stats() %>%
   select(
     pokemon_id = name,
     name,
@@ -52,35 +57,35 @@ base_stats <- readRDS("data/base_stats.rds") %>%
     type2 = `Type 2`
   )
 
-raid_bosses <- readRDS("data/base_stats.rds") %>%
+raid_bosses <- get_base_stats()  %>%
   # filter(`Raid Boss Tier` > 3) %>%
   filter(`Raid Boss Tier` > 3) %>%
   select(Pokemon = name, tier = `Raid Boss Tier`) %>%
   distinct() %>%
   left_join(raid_boss_tiers)
 
-boss_move_combinations <- readRDS("data/boss_move_combinations.RDS")
+boss_move_combinations <- get_boss_move_combinations()
 
-moves <- readRDS("data/moves_formatted.RDS")
+moves <- get_moves_formatted()
 
-user_pokemon <- readRDS("data/user_pokemon.rds") %>%
-  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
-  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
-  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
-  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid,
-        pokemon_id = Pokemon,
-        dust_status = `Dust Status`,
+user_pokemon <- get_user_pokemon_enriched(user_id) %>%
+  mutate(shadow = if_else(dust_status == "Shadow", TRUE, FALSE)) %>%
+  mutate(attack_iv = if_else(is.na(attack_iv), 0, attack_iv)) %>%
+  mutate(defence_iv  = if_else(is.na(defence_iv ), 0, defence_iv )) %>%
+  mutate(hp_iv  = if_else(is.na(hp_iv ), 0, hp_iv )) %>%
+  select(pokemon_instance_id ,
+        Pokemon,
+        dust_status,
         level = `Level`,
-        iv_atk = `Attack IV`,
-        iv_def = `Defence IV`,
-        iv_sta = `HP IV`,
+        iv_atk = attack_iv,
+        iv_def = defence_iv,
+        iv_sta = hp_iv,
         shadow,
-        fast_move_id = `Fast Move`,
+        fast_move_id = fast_move ,
         charged_move_id = `Charge1`,
         Charge2)
 
-user_pokemon <- readRDS("data/user_pokemon.rds") %>%
+user_pokemon <- get_user_pokemon(user_id) %>%
   filter(`Can Mega Evolve` == "Yes") %>%
   rename(base_name = Pokemon) %>%
   inner_join(mega_table) %>%
