@@ -85,27 +85,27 @@ user_pokemon <- get_user_pokemon_enriched(user_id) %>%
         charged_move_id = `Charge1`,
         Charge2)
 
-user_pokemon <- get_user_pokemon(user_id) %>%
-  filter(`Can Mega Evolve` == "Yes") %>%
+user_pokemon <- get_user_pokemon_enriched(user_id) %>%
+  filter(can_mega_evolve == "Yes") %>%
   rename(base_name = Pokemon) %>%
   inner_join(mega_table) %>%
   select(-c(`pokedex number`, base_name)) %>%
   rename(Pokemon = Mega_name) %>%
-  mutate(shadow = if_else(`Dust Status` == "Shadow", TRUE, FALSE)) %>%
-  mutate(`Attack IV` = if_else(is.na(`Attack IV`), 0, `Attack IV`)) %>%
-  mutate(`Defence IV` = if_else(is.na(`Defence IV`), 0, `Defence IV`)) %>%
-  mutate(`HP IV` = if_else(is.na(`HP IV`), 0, `HP IV`)) %>%
-  select(uuid,
-        pokemon_id = Pokemon,
-        dust_status = `Dust Status`,
+  mutate(shadow = if_else(dust_status == "Shadow", TRUE, FALSE)) %>%
+  mutate(attack_iv = if_else(is.na(attack_iv), 0, attack_iv)) %>%
+  mutate(defence_iv  = if_else(is.na(defence_iv ), 0, defence_iv )) %>%
+  mutate(hp_iv  = if_else(is.na(hp_iv ), 0, hp_iv )) %>%
+  select(pokemon_instance_id ,
+        Pokemon,
+        dust_status,
         level = `Level`,
-        iv_atk = `Attack IV`,
-        iv_def = `Defence IV`,
-        iv_sta = `HP IV`,
+        iv_atk = attack_iv,
+        iv_def = defence_iv,
+        iv_sta = hp_iv,
         shadow,
-        fast_move_id = `Fast Move`,
+        fast_move_id = fast_move ,
         charged_move_id = `Charge1`,
-      Charge2) %>%
+        Charge2) %>%
   bind_rows(user_pokemon)
 
 user_pokemon <- bind_rows(user_pokemon %>%
@@ -194,7 +194,7 @@ server <- function(input, output, session) {
         mutate(tier = as.character(tier)),
       tibble(tier = as.character(1:6), raid_boss = "--"),
       results_summary %>%
-        select(tier, raid_boss) %>%
+        select(tier = raid_tier, raid_boss) %>%
         distinct() %>%
         arrange(desc(tier), raid_boss) %>%
         mutate(tier = as.character(tier))
